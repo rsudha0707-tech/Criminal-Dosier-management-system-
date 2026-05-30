@@ -197,6 +197,7 @@ function navigateTo(view) {
       headerSub.textContent = 'Uttar Pradesh Police — Real-time Criminal Intelligence Overview';
       content.innerHTML = renderDashboard();
       initDashboardCharts();
+      setTimeout(() => initCrimeMap('dashboard-map-container'), 200);
       break;
     case 'dossiers':
       header.textContent = t('dossiers');
@@ -260,112 +261,126 @@ function renderDashboard() {
   const pendingDossiers = dossiers.filter(d => d.approvalStatus === 'Pending Verification');
 
   return `
-    <!-- Stats Grid -->
-    <div class="stats-grid">
-      ${statCard('👥', stats.totalCriminals, t('totalCriminals'), '+2 this week', 'up', '')}
-      ${statCard('🔴', stats.activeCriminals, t('activeCriminals'), '+1 this week', 'up', 'danger')}
-      ${statCard('📋', stats.historySheeters, t('historySheeters'), 'No change', '', 'warning')}
-      ${statCard('⛔', stats.gangsters, t('gangsters'), '+1 new gang', 'up', 'danger')}
-      ${statCard('🚨', stats.wantedCriminals, t('wantedCriminals'), 'NBW Active', 'up', 'danger')}
-      ${statCard('🏛️', MASTER_DATA.totals.districts, t('districts'), 'Statewide', '', 'info')}
-      ${statCard('🚔', MASTER_DATA.totals.policeStations, t('policeStations'), 'Active Stations', '', 'success')}
-    </div>
-
-    ${pendingDossiers.length > 0 && currentUser.level >= 2 ? `
-    <!-- Pending Review Banner -->
-    <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:14px 18px; display:flex; align-items:center; gap:12px; margin-bottom:20px;">
-      <span style="font-size:24px;">⚠️</span>
-      <div style="flex:1;">
-        <div style="font-weight:700; color:#fbbf24;">Pending Verification: ${pendingDossiers.length} Dossier(s)</div>
-        <div style="font-size:12px; color:var(--text-secondary);">${pendingDossiers.map(d=>d.personalInfo.name).join(', ')} — awaiting district review</div>
+    <div class="dashboard-console">
+      <!-- Stats Row Compact -->
+      <div class="stats-row-compact">
+        ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '')}
+        ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger')}
+        ${statCardCompact('📋', stats.historySheeters, t('historySheeters'), 'warning')}
+        ${statCardCompact('⛔', stats.gangsters, t('gangsters'), 'danger')}
+        ${statCardCompact('🚨', stats.wantedCriminals, t('wantedCriminals'), 'danger')}
+        ${statCardCompact('🏛️', MASTER_DATA.totals.districts, t('districts'), 'info')}
+        ${statCardCompact('🚔', MASTER_DATA.totals.policeStations, t('policeStations'), 'success')}
       </div>
-      <button class="btn btn-sm" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);" onclick="navigateTo('dossiers')">Review Now →</button>
-    </div>` : ''}
 
-    <!-- Charts Row -->
-    <div class="charts-grid" style="grid-template-columns: 1.8fr 1fr; margin-bottom:24px;">
-      <div class="chart-card">
-        <div class="chart-card-header">
-          <div>
-            <div class="chart-card-title">📈 Monthly Crime Trend (2025–2026)</div>
-            <div class="chart-card-subtitle">FIR registrations over time across UP</div>
+      <!-- Dashboard Workspace Grid -->
+      <div class="dashboard-workspace">
+        
+        <!-- Left Column: Alerts Feed + District Cases -->
+        <div class="dashboard-workspace-col">
+          <div class="dashboard-alerts-card">
+            <div class="section-header">
+              <h3>🔔 Live Alerts</h3>
+              <button class="btn btn-xs btn-secondary" onclick="navigateTo('alerts')">All</button>
+            </div>
+            <div class="alert-feed">
+              ${LIVE_ALERTS.map(a => `
+                <div class="alert-item alert-${a.type}" style="padding: 8px 10px; margin-bottom: 6px;">
+                  <span class="alert-icon" style="font-size: 14px;">${a.icon}</span>
+                  <div>
+                    <div class="alert-title" style="font-size: 11px;">${a.title}</div>
+                    <div class="alert-body" style="font-size: 10px; line-height: 1.3; margin-top: 1px;">${a.body}</div>
+                    <div class="alert-time" style="font-size: 9px; margin-top: 2px;">🕐 ${a.time}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
           </div>
-          <span class="badge badge-wanted">LIVE</span>
-        </div>
-        <div class="chart-area"><canvas id="chart-trend" class="chart-canvas"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-card-header">
-          <div>
-            <div class="chart-card-title">🎯 Criminal Categories</div>
-            <div class="chart-card-subtitle">Distribution by status</div>
-          </div>
-        </div>
-        <div class="chart-area"><canvas id="chart-category" class="chart-canvas"></canvas></div>
-      </div>
-    </div>
-
-    <!-- District comparison + recent dossiers -->
-    <div class="charts-grid" style="grid-template-columns: 1fr 1.6fr; margin-bottom:24px;">
-      <div class="chart-card">
-        <div class="chart-card-header">
-          <div>
-            <div class="chart-card-title">🏛️ District-wise Cases</div>
-            <div class="chart-card-subtitle">Criminal records per district</div>
+          <div class="chart-card" style="height: 180px; flex: none;">
+            <div class="chart-card-header" style="margin-bottom: 8px;">
+              <div>
+                <div class="chart-card-title">🏛️ District-wise Cases</div>
+              </div>
+            </div>
+            <div id="district-bars" style="overflow-y: auto; flex: 1; padding-right: 4px;"></div>
           </div>
         </div>
-        <div id="district-bars" style="padding:4px 0;"></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-card-header">
-          <div>
-            <div class="chart-card-title">📊 Gang Activity Analysis</div>
-            <div class="chart-card-subtitle">Active vs Wanted members per gang</div>
+
+        <!-- Center Column: Map & Recent Dossiers -->
+        <div class="dashboard-workspace-col" style="flex: 1.5;">
+          <div id="dashboard-map-container" style="flex: 1.3; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--glass-border); position: relative;">
+            <!-- Crime Map will load here -->
+          </div>
+          
+          <div class="chart-card dashboard-table-card">
+            <div class="chart-card-header" style="margin-bottom: 8px; flex-shrink: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div class="chart-card-title">📁 Recent Dossiers</div>
+                <div style="display: flex; gap: 6px;">
+                  ${currentUser.level === 1 ? `<button class="btn btn-primary btn-xs" onclick="openAddDossierModal()">➕ Add</button>` : ''}
+                  <button class="btn btn-secondary btn-xs" onclick="navigateTo('dossiers')">View All</button>
+                </div>
+              </div>
+            </div>
+            <div class="table-scroll-container">
+              ${renderDossierTable(dossiers.slice(0, 5))}
+            </div>
           </div>
         </div>
-        <div class="chart-area"><canvas id="chart-gangs" class="chart-canvas"></canvas></div>
-      </div>
-    </div>
 
-    <!-- Recent Dossiers Table -->
-    <div class="table-card">
-      <div class="table-header">
-        <div class="table-title">📁 Recent Dossiers</div>
-        <div class="table-actions">
-          ${currentUser.level === 1 ? `<button class="btn btn-primary btn-sm" onclick="openAddDossierModal()">➕ ${t('addDossier')}</button>` : ''}
-          <button class="btn btn-secondary btn-sm" onclick="navigateTo('dossiers')">View All →</button>
-        </div>
-      </div>
-      ${renderDossierTable(dossiers.slice(0, 5))}
-    </div>
+        <!-- Right Column: Charts & Pending Review -->
+        <div class="dashboard-workspace-col charts-side">
+          ${pendingDossiers.length > 0 && currentUser.level >= 2 ? `
+          <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; flex-shrink: 0;">
+            <span style="font-size:18px;">⚠️</span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; color:#fbbf24; font-size:11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pending Review: ${pendingDossiers.length}</div>
+              <div style="font-size:9px; color:var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Awaiting verification</div>
+            </div>
+            <button class="btn btn-xs" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);" onclick="navigateTo('dossiers')">Verify</button>
+          </div>` : ''}
 
-    <!-- Quick Alerts -->
-    <div class="section-header" style="margin-top:24px;">
-      <h3>🔔 Recent Alerts</h3>
-      <button class="btn btn-sm btn-secondary" onclick="navigateTo('alerts')">View All</button>
-    </div>
-    <div class="alert-feed">
-      ${LIVE_ALERTS.slice(0,3).map(a => `
-        <div class="alert-item alert-${a.type}">
-          <span class="alert-icon">${a.icon}</span>
-          <div>
-            <div class="alert-title">${a.title}</div>
-            <div class="alert-body">${a.body}</div>
-            <div class="alert-time">🕐 ${a.time}</div>
+          <div class="chart-card">
+            <div class="chart-card-header" style="margin-bottom: 8px;">
+              <div>
+                <div class="chart-card-title">📈 Monthly Crime Trend</div>
+              </div>
+            </div>
+            <div class="chart-area"><canvas id="chart-trend" class="chart-canvas"></canvas></div>
+          </div>
+          
+          <div class="chart-card">
+            <div class="chart-card-header" style="margin-bottom: 8px;">
+              <div>
+                <div class="chart-card-title">🎯 Criminal Categories</div>
+              </div>
+            </div>
+            <div class="chart-area"><canvas id="chart-category" class="chart-canvas"></canvas></div>
+          </div>
+
+          <div class="chart-card" style="height: 140px; flex: none;">
+            <div class="chart-card-header" style="margin-bottom: 8px;">
+              <div>
+                <div class="chart-card-title">📊 Gang Activity Analysis</div>
+              </div>
+            </div>
+            <div class="chart-area"><canvas id="chart-gangs" class="chart-canvas"></canvas></div>
           </div>
         </div>
-      `).join('')}
+
+      </div>
     </div>
   `;
 }
 
-function statCard(icon, value, label, change, dir, type) {
+function statCardCompact(icon, value, label, type) {
   return `
     <div class="stat-card ${type}" onclick="navigateTo('dossiers')">
       <div class="stat-icon">${icon}</div>
-      <div class="stat-value">${value}</div>
-      <div class="stat-label">${label}</div>
-      ${change ? `<div class="stat-change ${dir}">${dir === 'up' ? '▲' : dir === 'down' ? '▼' : '—'} ${change}</div>` : ''}
+      <div class="stat-content">
+        <div class="stat-value">${value}</div>
+        <div class="stat-label">${label}</div>
+      </div>
     </div>
   `;
 }

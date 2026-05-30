@@ -882,7 +882,7 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
 
 /* ── DISTRICT COMPARISON ── */
 .district-bar-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.district-name { font-size: 12px; color: var(--text-secondary); width: 140px; flex-shrink: 0; }
+.district-name { font-size: 12px; color: var(--text-secondary); width: 90px; flex-shrink: 0; }
 .district-bar-wrap { flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
 .district-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--gold-700), var(--gold-500)); transition: width 1.2s ease; }
 .district-count { font-size: 12px; font-weight: 700; color: var(--text-primary); width: 28px; text-align: right; }
@@ -942,3 +942,203 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .charts-grid { grid-template-columns: 1fr; }
 }
+
+/* ── UP Police Branding Styles ── */
+.emblem-wrapper {
+  width: 90px; height: 90px;
+  margin: 0 auto 12px;
+  filter: drop-shadow(0 0 10px rgba(238, 185, 2, 0.3));
+  transition: var(--transition);
+}
+.emblem-wrapper:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 18px rgba(238, 185, 2, 0.6));
+}
+.up-police-logo-svg {
+  width: 100%; height: 100%;
+}
+.login-slogan {
+  font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-400);
+  text-align: center;
+  margin-top: 8px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px rgba(238, 185, 2, 0.2);
+}
+
+.logo-icon-wrapper {
+  width: 32px; height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 4px rgba(238, 185, 2, 0.2));
+}
+.up-police-logo-sidebar-svg {
+  width: 100%; height: 100%;
+}
+
+.header-branding {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+.header-emblem-wrapper {
+  width: 34px; height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 4px rgba(238, 185, 2, 0.2));
+}
+.up-police-logo-header-svg {
+  width: 100%; height: 100%;
+}
+
+/* ── Viewport Layout System ── */
+#app.active {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-wrapper {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.page-content {
+  flex: 1;
+  padding: 16px 24px;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dashboard Console Grid (Single Screen Layout) */
+.dashboard-console {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stats-row-compact {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.stats-row-compact .stat-card {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+}
+.stats-row-compact .stat-icon {
+  font-size: 20px;
+  margin-bottom: 0;
+}
+.stats-row-compact .stat-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.stats-row-compact .stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 0;
+}
+.stats-row-compact .stat-label {
+  font-size: 9px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  color: var(--text-secondary);
+}
+.stats-row-compact .stat-change {
+  display: none;
+}
+
+.dashboard-workspace {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 310px 1fr 340px;
+  gap: 16px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dashboard-workspace-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dashboard-workspace-col .chart-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-workspace-col .chart-card .chart-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.dashboard-alerts-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.dashboard-alerts-card .alert-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.dashboard-alerts-card .section-header {
+  margin-bottom: 12px;
+}
+
+.dashboard-table-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dashboard-table-card .table-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-workspace {
+    grid-template-columns: 280px 1fr;
+  }
+  .dashboard-workspace-col.charts-side {
+    display: none;
+  }
+}
+
