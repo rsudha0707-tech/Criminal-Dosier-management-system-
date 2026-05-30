@@ -945,17 +945,18 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
 
 /* ── UP Police Branding Styles ── */
 .emblem-wrapper {
-  width: 90px; height: 90px;
+  width: 100px; height: 100px;
   margin: 0 auto 12px;
-  filter: drop-shadow(0 0 10px rgba(238, 185, 2, 0.3));
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.15));
   transition: var(--transition);
 }
 .emblem-wrapper:hover {
   transform: scale(1.05);
-  filter: drop-shadow(0 0 18px rgba(238, 185, 2, 0.6));
+  filter: drop-shadow(0 0 18px rgba(238, 185, 2, 0.4));
 }
-.up-police-logo-svg {
+.up-police-logo-img {
   width: 100%; height: 100%;
+  object-fit: contain;
 }
 .login-slogan {
   font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
@@ -969,15 +970,15 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
 }
 
 .logo-icon-wrapper {
-  width: 32px; height: 32px;
+  width: 36px; height: 36px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0 4px rgba(238, 185, 2, 0.2));
 }
-.up-police-logo-sidebar-svg {
+.up-police-logo-img-small {
   width: 100%; height: 100%;
+  object-fit: contain;
 }
 
 .header-branding {
@@ -987,15 +988,11 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
   flex: 1;
 }
 .header-emblem-wrapper {
-  width: 34px; height: 34px;
+  width: 36px; height: 36px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0 4px rgba(238, 185, 2, 0.2));
-}
-.up-police-logo-header-svg {
-  width: 100%; height: 100%;
 }
 
 /* ── Viewport Layout System ── */
@@ -1140,5 +1137,70 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
   .dashboard-workspace-col.charts-side {
     display: none;
   }
+}
+
+/* ── UP Police Crimson & Navy Theme Customizations ── */
+:root {
+  --upp-red: #c51e24;       /* Crimson Red */
+  --upp-blue: #122851;      /* Police Navy Blue */
+  --upp-gold: #eebb02;      /* Brass Gold */
+}
+
+/* Override Login Button to Crimson/Navy Flag Gradient */
+.btn-login {
+  background: linear-gradient(135deg, var(--upp-red), var(--upp-blue)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(197, 30, 36, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.btn-login:hover {
+  box-shadow: 0 6px 20px rgba(197, 30, 36, 0.45) !important;
+  border-color: var(--upp-gold) !important;
+}
+
+/* Sidebar Active Link Style using UP Police Crimson */
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(197, 30, 36, 0.15), transparent) !important;
+  color: var(--upp-gold) !important;
+}
+.nav-item.active::before {
+  background: var(--upp-red) !important;
+}
+
+/* Primary buttons using Crimson flag red */
+.btn-primary {
+  background: linear-gradient(135deg, var(--upp-red), #991b1b) !important;
+  color: #ffffff !important;
+}
+.btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(197, 30, 36, 0.4) !important;
+}
+
+/* Ticker Bar using subtle Red styling */
+.ticker-bar {
+  background: rgba(197, 30, 36, 0.08) !important;
+  border-bottom: 1px solid rgba(197, 30, 36, 0.2) !important;
+}
+.ticker-label {
+  background: var(--upp-red) !important;
+  color: #ffffff !important;
+}
+
+/* Section Indicators using Crimson to Navy gradient */
+.section-header h3::before {
+  background: linear-gradient(180deg, var(--upp-red), var(--upp-blue)) !important;
+}
+
+/* Sub-headings and active status indicators */
+.sidebar-logo .logo-text h2 {
+  color: var(--upp-gold) !important;
+}
+.user-role {
+  color: var(--upp-gold) !important;
+}
+.badge-wanted {
+  background: rgba(197, 30, 36, 0.2) !important;
+  color: #f87171 !important;
+  border-color: rgba(197, 30, 36, 0.4) !important;
 }
 
