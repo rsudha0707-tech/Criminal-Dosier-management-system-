@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="hi" data-lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Criminal Dossier & Intelligence Management System — Uttar Pradesh Police Headquarters. Centralized portal for criminal records, gang profiles, surveillance and intelligence." />
+  <title>CDIMS — Criminal Dossier & Intelligence Management System | UP Police</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- D3.js for network graph -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Dossier DB -->
+  <script src="dossiers.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     LOGIN SCREEN
+═══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-bg-grid"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="emblem">🛡️</div>
+      <h1>CDIMS</h1>
+      <p>Criminal Dossier &amp; Intelligence Management System</p>
+    </div>
+    <div class="login-dept">
+      🏛️ Uttar Pradesh Police Headquarters | उत्तर प्रदेश पुलिस मुख्यालय
+    </div>
+
+    <div class="form-group">
+      <label>Username / यूज़रनेम</label>
+      <input type="text" id="login-username" class="form-control" placeholder="Enter your credentials" value="sho_hazratganj" />
+    </div>
+    <div class="form-group">
+      <label>Password / पासवर्ड</label>
+      <input type="password" id="login-password" class="form-control" placeholder="••••••••" value="up@1234" />
+    </div>
+    <div class="form-group">
+      <label>Login As / भूमिका चुनें (Demo)</label>
+      <select id="login-role" class="form-control">
+        <option value="l1">Level 1 — Police Station User (SHO/IO/DEO)</option>
+        <option value="l2">Level 2 — District Nodal Officer (CO/SP Office)</option>
+        <option value="l3">Level 3 — State Administrator (PHQ)</option>
+      </select>
+    </div>
+    <button class="btn-login" id="btn-login" onclick="doLogin()">🔐 Secure Login / सुरक्षित लॉगिन</button>
+
+    <div class="login-role-badges" style="margin-top:20px;">
+      <div class="role-badge" onclick="quickLogin('l1')">
+        <span class="role-icon">👮</span>
+        <div class="role-name">Station User</div>
+        <div class="role-level">Level 1</div>
+      </div>
+      <div class="role-badge" onclick="quickLogin('l2')">
+        <span class="role-icon">🏅</span>
+        <div class="role-name">District Nodal</div>
+        <div class="role-level">Level 2</div>
+      </div>
+      <div class="role-badge" onclick="quickLogin('l3')">
+        <span class="role-icon">⭐</span>
+        <div class="role-name">PHQ Admin</div>
+        <div class="role-level">Level 3</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN APPLICATION
+═══════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-badge">
+        <div class="logo-icon">🛡️</div>
+        <div class="logo-text">
+          <h2>UP CDIMS</h2>
+          <p>UP Police Headquarters</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-user" id="sidebar-user">
+      <div class="user-avatar" id="user-avatar">SH</div>
+      <div class="user-info">
+        <div class="user-name" id="user-name-display">SHO Hazratganj</div>
+        <div class="user-role" id="user-role-display">Police Station User</div>
+        <div class="user-station" id="user-station-display">Hazratganj PS, Lucknow</div>
+      </div>
+    </div>
+
+    <div class="sidebar-nav" id="sidebar-nav">
+      <!-- Populated by JS based on role -->
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn-logout" onclick="doLogout()">
+        🚪 <span data-i18n="logout">Logout / लॉगआउट</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MAIN WRAPPER -->
+  <div class="main-wrapper">
+
+    <!-- HEADER -->
+    <header class="header" id="main-header">
+      <div class="header-title">
+        <h2 id="page-title">Dashboard</h2>
+        <p id="page-subtitle">Uttar Pradesh Police — Criminal Dossier & Intelligence Management System</p>
+      </div>
+      <div class="header-actions">
+        <div class="lang-toggle">
+          <button class="lang-btn active" id="btn-lang-en" onclick="setLang('en')">EN</button>
+          <button class="lang-btn" id="btn-lang-hi" onclick="setLang('hi')">हिं</button>
+        </div>
+        <div class="header-icon-btn" onclick="toggleNotifPanel()" title="Alerts">
+          🔔
+          <span class="notif-dot"></span>
+        </div>
+        <div class="header-icon-btn" onclick="navigateTo('audit')" title="Audit Logs">📋</div>
+        <div class="header-icon-btn" onclick="navigateTo('reports')" title="Reports">📊</div>
+      </div>
+    </header>
+
+    <!-- NOTIFICATION PANEL -->
+    <div class="notif-panel" id="notif-panel">
+      <div class="notif-panel-header">
+        <h4>🔔 Live Alerts</h4>
+        <button class="btn btn-xs btn-secondary" onclick="toggleNotifPanel()">✕</button>
+      </div>
+      <div class="notif-list" id="notif-list"></div>
+    </div>
+
+    <!-- TICKER BAR -->
+    <div class="ticker-bar">
+      <span class="ticker-label">⚡ LIVE</span>
+      <span class="ticker-text" id="ticker-text">
+        🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp; 
+        ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp; 
+        🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
+        📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area &nbsp;|&nbsp;
+        🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp; 
+        ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp; 
+        🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
+        📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area
+      </span>
+    </div>
+
+    <!-- PAGE CONTENT AREA -->
+    <div class="page-content" id="page-content">
+      <!-- Dynamic content loaded here by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     DOSSIER DETAIL MODAL
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="dossier-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📁 <span id="modal-criminal-name">Criminal Dossier</span></h3>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-sm btn-secondary" onclick="printDossier()">🖨️ Print</button>
+        <button class="modal-close" onclick="closeDossierModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <!-- Dynamic content -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     ADD DOSSIER MODAL
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="add-dossier-modal">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <h3>➕ New Criminal Dossier / नया अपराधी डोजियर</h3>
+      <button class="modal-close" onclick="closeAddDossierModal()">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
+      <div class="form-section-title">👤 Personal Information / व्यक्तिगत जानकारी</div>
+      <div class="form-grid">
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Full Name / पूर्ण नाम *</label>
+          <input id="f-name" class="form-control-sm" type="text" placeholder="e.g. Ramesh Kumar" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Alias Name / उपनाम</label>
+          <input id="f-alias" class="form-control-sm" type="text" placeholder="Known as..." />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Father's Name / पिता का नाम</label>
+          <input id="f-father" class="form-control-sm" type="text" placeholder="Father's full name" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Date of Birth</label>
+          <input id="f-dob" class="form-control-sm" type="date" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gender</label>
+          <select id="f-gender" class="form-control-sm">
+            <option>Male</option><option>Female</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Mobile Number</label>
+          <input id="f-mobile" class="form-control-sm" type="text" placeholder="10-digit number" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Aadhaar (Last 4 digits)</label>
+          <input id="f-aadhaar" class="form-control-sm" type="text" placeholder="XXXX-XXXX-XXXX" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Blood Group</label>
+          <select id="f-blood" class="form-control-sm">
+            <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+            <option>O+</option><option>O-</option><option>AB+</option><option>AB-</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group-row" style="margin-top:8px;">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Address / वर्तमान पता</label>
+        <textarea id="f-address" class="form-control-sm" placeholder="Full address..."></textarea>
+      </div>
+
+      <div class="form-section-title" style="margin-top:16px;">⚖️ Criminal History</div>
+      <div class="form-grid">
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">FIR Number</label>
+          <input id="f-fir" class="form-control-sm" placeholder="FIR-XXX/YYYY" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
+          <input id="f-ps" class="form-control-sm" placeholder="Police Station name" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">District</label>
+          <select id="f-district" class="form-control-sm">
+            <option value="lucknow">Lucknow</option>
+            <option value="varanasi">Varanasi</option>
+            <option value="prayagraj">Prayagraj</option>
+            <option value="noida">Gautam Buddha Nagar</option>
+          </select>
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Status</label>
+          <select id="f-status" class="form-control-sm">
+            <option>Wanted</option><option>Active</option>
+            <option>In Jail</option><option>Out on Bail</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Sections of Law</label>
+        <input id="f-sections" class="form-control-sm" placeholder="e.g. IPC 302, Arms Act Sec 25" />
+      </div>
+
+      <div class="form-section-title" style="margin-top:16px;">🕵️ Surveillance</div>
+      <div class="form-grid">
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">History Sheet Number</label>
+          <input id="f-hs" class="form-control-sm" placeholder="HS-XXX/Station" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Surveillance Category</label>
+          <select id="f-scat" class="form-control-sm">
+            <option>Category A (Hardened Gangster)</option>
+            <option>Category B (Active Criminal)</option>
+            <option>Category C (Petty Associate)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Intelligence Notes</label>
+        <textarea id="f-intel" class="form-control-sm" placeholder="Intelligence inputs and surveillance notes..."></textarea>
+      </div>
+
+      <div class="form-section-title" style="margin-top:16px;">👥 Gang Information</div>
+      <div class="form-grid">
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gang Name</label>
+          <input id="f-gang" class="form-control-sm" placeholder="Gang name or Independent" />
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gang Leader</label>
+          <input id="f-leader" class="form-control-sm" placeholder="Gang leader's name" />
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="closeAddDossierModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitNewDossier()">💾 Save Dossier</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="network.js"></script>
+<script src="map.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
