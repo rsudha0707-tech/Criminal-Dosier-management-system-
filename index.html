@@ -14,8 +14,10 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Dossier DB -->
-  <script src="dossiers.js"></script>
+  <!-- Supabase JS Client (required for backend.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Backend: Supabase data layer (replaces dossiers.js) -->
+  <script src="backend.js"></script>
 </head>
 <body>
 
@@ -254,17 +256,21 @@
           <input id="f-fir" class="form-control-sm" placeholder="FIR-XXX/YYYY" />
         </div>
         <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
-          <input id="f-ps" class="form-control-sm" placeholder="Police Station name" />
-        </div>
-        <div class="form-group-row">
           <label class="form-group" style="font-size:11px;color:var(--text-muted);">District</label>
-          <select id="f-district" class="form-control-sm">
+          <select id="f-district" class="form-control-sm" onchange="onModalDistrictChange()">
             <option value="lucknow">Lucknow</option>
             <option value="varanasi">Varanasi</option>
             <option value="prayagraj">Prayagraj</option>
             <option value="noida">Gautam Buddha Nagar</option>
           </select>
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
+          <select id="f-ps" class="form-control-sm" onchange="onModalStationChange()"></select>
+        </div>
+        <div class="form-group-row">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Village / ग्राम *</label>
+          <select id="f-village" class="form-control-sm"></select>
         </div>
         <div class="form-group-row">
           <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Status</label>

@@ -49,6 +49,33 @@ const MASTER_DATA = {
   }
 };
 
+const VILLAGES_BY_STATION = {
+  // Lucknow
+  "Hazratganj": ["Madanpur", "Sikandarpur", "Rampur", "Gomtipur"],
+  "Gautampalli": ["Pipraghat", "Jiamau", "Ujariyaon"],
+  "Hussainganj": ["Hussainganj Dehat", "Charbagh Village"],
+  "Chowk": ["Malihabad Village", "Kakori Village", "Hardoi Road Basti"],
+  "Wazirganj": ["Riverbank Colony Dehat", "Ghasyari Mandi Basti"],
+  "Thakurganj": ["Sarfarazganj", "Campbell Road Village"],
+  // Varanasi
+  "Dashashwamedh": ["Ghat Dehat", "Bengali Tola"],
+  "Lanka": ["Shivpur Village", "Sunderpur", "Bhagwanpur"],
+  "Bhelupur": ["Khojwan", "Kamachha"],
+  "Cantt": ["Varanasi Cantt Dehat", "Nadesar"],
+  "Shivpur": ["Harahua", "Phoolpur Village"],
+  // Prayagraj
+  "Civil Lines": ["Cantonment Dehat", "Civil Lines Village"],
+  "Cantonment": ["Rajapur", "Muirabad"],
+  "Georgetown": ["Allapur Village", "Tagore Town Basti"],
+  "Shivkuti": ["Handia Village", "Phaphamau Dehat", "Soraon Dehat"],
+  // Noida
+  "Sector-20": ["Bisrakh", "Nithari", "Chhalera"],
+  "Sector-39": ["Sadarpur", "Raipur", "Khajoorpur"],
+  "Sector-58": ["Bishanpura", "Noida Sector-58 Village"],
+  "Phase-2": ["Gheja", "Noida Phase 2 Basti"],
+  "Phase-3": ["Mamura", "Garhi Chaukhandi"]
+};
+
 const INITIAL_DOSSIERS = [
   {
     id: "CRM-2026-0001",
@@ -65,7 +92,8 @@ const INITIAL_DOSSIERS = [
       aadhaar: "XXXX-XXXX-8923",
       address: "House No 42, Mohalla Chowk, Lucknow, UP",
       permanentAddress: "Village Bhadarsa, District Ayodhya, UP",
-      photograph: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300"
+      photograph: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300",
+      village: "Madanpur"
     },
     biometrics: {
       fingerprints: "FP-8923-SECURED",
@@ -148,7 +176,8 @@ const INITIAL_DOSSIERS = [
       aadhaar: "XXXX-XXXX-4102",
       address: "Sector 4, Aliganj, Lucknow, UP",
       permanentAddress: "Gola Gokaran Nath, Lakhimpur Kheri, UP",
-      photograph: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300"
+      photograph: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300",
+      village: "Madanpur"
     },
     biometrics: {
       fingerprints: "FP-4102-SECURED",
@@ -217,7 +246,8 @@ const INITIAL_DOSSIERS = [
       aadhaar: "XXXX-XXXX-1150",
       address: "Village Shivpur, Varanasi, UP",
       permanentAddress: "Village Shivpur, Varanasi, UP",
-      photograph: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=300"
+      photograph: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=300",
+      village: "Shivpur Village"
     },
     biometrics: {
       fingerprints: "FP-1150-SECURED",
@@ -296,7 +326,8 @@ const INITIAL_DOSSIERS = [
       aadhaar: "XXXX-XXXX-9934",
       address: "Village Bisrakh, Greater Noida, UP",
       permanentAddress: "Village Bisrakh, Greater Noida, UP",
-      photograph: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=300"
+      photograph: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=300",
+      village: "Bisrakh"
     },
     biometrics: {
       fingerprints: "FP-9934-SECURED",
@@ -376,7 +407,8 @@ const INITIAL_DOSSIERS = [
       aadhaar: "XXXX-XXXX-5521",
       address: "Katra, Prayagraj, UP",
       permanentAddress: "Handia, District Prayagraj, UP",
-      photograph: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=300"
+      photograph: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=300",
+      village: "Handia Village"
     },
     biometrics: {
       fingerprints: "FP-5521-SECURED",
@@ -444,7 +476,8 @@ const INITIAL_DOSSIERS = [
       aadhaar: "XXXX-XXXX-6671",
       address: "12/45, Chowk, Lucknow, UP",
       permanentAddress: "Village Malihabad, Lucknow, UP",
-      photograph: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=300"
+      photograph: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=300",
+      village: "Malihabad Village"
     },
     biometrics: {
       fingerprints: "FP-6671-SECURED",
@@ -499,8 +532,19 @@ const INITIAL_DOSSIERS = [
   }
 ];
 
+// ── Schema versioning: bump this when seed data shape changes ──
+const CDIMS_DB_VERSION = "v2-village";
+
 // Initialize database in localStorage
 function initDatabase() {
+  // If the stored schema version doesn't match, wipe and re-seed
+  const storedVersion = localStorage.getItem("cdims_db_version");
+  if (storedVersion !== CDIMS_DB_VERSION) {
+    localStorage.removeItem("cdims_dossiers");
+    localStorage.removeItem("cdims_audit_logs");
+    localStorage.setItem("cdims_db_version", CDIMS_DB_VERSION);
+  }
+
   if (!localStorage.getItem("cdims_dossiers")) {
     localStorage.setItem("cdims_dossiers", JSON.stringify(INITIAL_DOSSIERS));
   }
@@ -760,6 +804,7 @@ function generateStatistics() {
 // Export functions to global window for SPA modules
 window.MASTER_DATA = MASTER_DATA;
 window.INITIAL_DOSSIERS = INITIAL_DOSSIERS;
+window.VILLAGES_BY_STATION = VILLAGES_BY_STATION;
 window.initDatabase = initDatabase;
 window.getDossiers = getDossiers;
 window.addDossier = addDossier;

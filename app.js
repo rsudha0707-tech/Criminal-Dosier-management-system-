@@ -11,6 +11,11 @@ let currentView = 'dashboard';
 let charts = {};
 let notifPanelOpen = false;
 
+// Village selection state
+let selectedVillageDistrict = 'lucknow';
+let selectedVillageStation = 'Hazratganj';
+let selectedVillageName = null;
+
 // ── Users Mock DB ──
 const USERS = {
   l1: {
@@ -119,6 +124,7 @@ function getNavItems() {
   const items = [];
 
   items.push({ id: 'dashboard', icon: '📊', label: t('dashboard'), section: 'OVERVIEW' });
+  items.push({ id: 'villages', icon: '🏘️', label: currentLang === 'hi' ? 'ग्राम निर्देशिका' : 'Village Directory', section: null });
   items.push({ id: 'dossiers', icon: '📁', label: t('dossiers'), section: null });
   items.push({ id: 'search', icon: '🔍', label: t('search'), section: null });
 
@@ -199,6 +205,11 @@ function navigateTo(view) {
       initDashboardCharts();
       setTimeout(() => initCrimeMap('dashboard-map-container'), 200);
       break;
+    case 'villages':
+      header.textContent = currentLang === 'hi' ? '🏘️ ग्राम निर्देशिका' : '🏘️ Village Directory';
+      headerSub.textContent = 'Village-wise list of history sheeters and active criminals';
+      content.innerHTML = renderVillageDirectory();
+      break;
     case 'dossiers':
       header.textContent = t('dossiers');
       headerSub.textContent = 'Manage, view and update criminal dossier records';
@@ -264,13 +275,12 @@ function renderDashboard() {
     <div class="dashboard-console">
       <!-- Stats Row Compact -->
       <div class="stats-row-compact">
-        ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '')}
-        ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger')}
-        ${statCardCompact('📋', stats.historySheeters, t('historySheeters'), 'warning')}
-        ${statCardCompact('⛔', stats.gangsters, t('gangsters'), 'danger')}
-        ${statCardCompact('🚨', stats.wantedCriminals, t('wantedCriminals'), 'danger')}
-        ${statCardCompact('🏛️', MASTER_DATA.totals.districts, t('districts'), 'info')}
-        ${statCardCompact('🚔', MASTER_DATA.totals.policeStations, t('policeStations'), 'success')}
+        ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '', "navigateTo('dossiers')")}
+        ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger', "navigateTo('dossiers')")}
+        ${statCardCompact('📋', stats.historySheeters, t('historySheeters'), 'warning', "navigateTo('dossiers')")}
+        ${statCardCompact('⛔', stats.gangsters, t('gangsters'), 'danger', "navigateTo('dossiers')")}
+        ${statCardCompact('🚨', stats.wantedCriminals, t('wantedCriminals'), 'danger', "navigateTo('dossiers')")}
+        ${renderRoleSpecificStatCards()}
       </div>
 
       <!-- Dashboard Workspace Grid -->
@@ -373,9 +383,10 @@ function renderDashboard() {
   `;
 }
 
-function statCardCompact(icon, value, label, type) {
+function statCardCompact(icon, value, label, type, onclick) {
+  const action = onclick || "navigateTo('dossiers')";
   return `
-    <div class="stat-card ${type}" onclick="navigateTo('dossiers')">
+    <div class="stat-card ${type}" onclick="${action}" style="cursor:pointer;">
       <div class="stat-icon">${icon}</div>
       <div class="stat-content">
         <div class="stat-value">${value}</div>
@@ -384,6 +395,281 @@ function statCardCompact(icon, value, label, type) {
     </div>
   `;
 }
+
+// ══════════════════════════════════════════════════════════
+//  ROLE-SPECIFIC DASHBOARD STAT CARDS
+// ══════════════════════════════════════════════════════════
+function renderRoleSpecificStatCards() {
+  const lvl = currentUser.level;
+
+  // ── Level 1: SHO — villages count, click → village list modal ──
+  if (lvl === 1) {
+    const stationKey = currentUser.station.split(' PS')[0].trim();
+    const villages   = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
+    return statCardCompact(
+      '🏘️', villages.length,
+      'Villages (This Station)',
+      'success',
+      'showSHOVillageListModal()'
+    );
+  }
+
+  // ── Level 2: SP/CO — station count, click → station detail modal ──
+  if (lvl === 2) {
+    const dist     = MASTER_DATA.districts.find(d => d.id === currentUser.district);
+    const stations = dist ? dist.circles.reduce((a, c) => a.concat(c.stations), []) : [];
+    return statCardCompact(
+      '🚔', stations.length,
+      'Police Stations (District)',
+      'success',
+      'showDistrictStationDetails()'
+    );
+  }
+
+  // ── Level 3: PHQ — statewide totals ──
+  return [
+    statCardCompact('🏛️', MASTER_DATA.totals.districts,      t('districts'),      'info',    "navigateTo('dossiers')"),
+    statCardCompact('🚔', MASTER_DATA.totals.policeStations, t('policeStations'),  'success', "navigateTo('dossiers')")
+  ].join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  SHO: VILLAGE LIST MODAL  →  VILLAGE DETAIL MODAL
+// ══════════════════════════════════════════════════════════
+function showSHOVillageListModal() {
+  const stationKey = currentUser.station.split(' PS')[0].trim();
+  const villages   = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
+  const dossiers   = getDossiers();
+
+  // Build village cards
+  const villageCards = villages.map(v => {
+    const criminals = dossiers.filter(d =>
+      d.personalInfo.village === v ||
+      d.history.some(h => h.policeStation.toLowerCase() === stationKey.toLowerCase())
+    ).filter(d => d.personalInfo.village === v);
+
+    const wantedCount = criminals.filter(d => d.status === 'Wanted').length;
+    const badge       = criminals.length > 0
+      ? `<span style="background:rgba(239,68,68,0.15);color:#f87171;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;">${criminals.length} criminal${criminals.length > 1 ? 's' : ''} ${wantedCount > 0 ? '· ' + wantedCount + ' wanted' : ''}</span>`
+      : `<span style="background:rgba(34,197,94,0.1);color:#4ade80;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;">Clear</span>`;
+
+    return `
+      <div onclick="showSHOVillageDetailModal('${v.replace(/'/g, "\\'")}', '${stationKey.replace(/'/g, "\\'")}', 'sho-village-list-modal')"
+        style="display:flex;align-items:center;justify-content:space-between;
+               padding:14px 16px; margin-bottom:8px; cursor:pointer;
+               background:var(--glass-bg); border:1px solid var(--glass-border);
+               border-radius:12px; transition:all 0.2s;"
+        onmouseover="this.style.borderColor='var(--gold-500)';this.style.background='rgba(238,185,2,0.07)'"
+        onmouseout="this.style.borderColor='var(--glass-border)';this.style.background='var(--glass-bg)'">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:22px;">🏘️</span>
+          <div>
+            <div style="font-weight:700;font-size:14px;color:var(--text-primary);">${v}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+              ${stationKey} Police Station
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${badge}
+          <span style="color:var(--text-muted);font-size:16px;">›</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  _openModal('sho-village-list-modal', `
+    <div style="margin-bottom:22px;">
+      <div style="font-size:22px;font-weight:800;color:var(--gold-400);">🏘️ Villages — ${stationKey} PS</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">
+        Total <strong style="color:var(--gold-300);">${villages.length} villages</strong> under this station
+        · Click a village to view criminal history
+      </div>
+    </div>
+    <div>${villages.length ? villageCards : '<div style="text-align:center;color:var(--text-muted);padding:30px 0;">No villages mapped for this station.</div>'}</div>
+  `);
+}
+window.showSHOVillageListModal = showSHOVillageListModal;
+
+// ── Village Detail: list of criminals in that village ──
+function showSHOVillageDetailModal(villageName, stationKey, returnModalId) {
+  const dossiers  = getDossiers();
+  const criminals = dossiers.filter(d => d.personalInfo.village === villageName);
+
+  const statusColor = s =>
+    s === 'Wanted'      ? { bg: 'rgba(239,68,68,0.15)',    fg: '#f87171' } :
+    s === 'Active'      ? { bg: 'rgba(245,158,11,0.15)',   fg: '#fbbf24' } :
+    s === 'In Jail'     ? { bg: 'rgba(99,102,241,0.15)',   fg: '#a78bfa' } :
+    s === 'Out on Bail' ? { bg: 'rgba(34,197,94,0.12)',    fg: '#4ade80' } :
+                          { bg: 'rgba(100,116,139,0.15)',  fg: '#94a3b8' };
+
+  const cards = criminals.map(d => {
+    const risk  = calculateRiskScore(d);
+    const col   = statusColor(d.status);
+    const fir   = d.history[0] || {};
+    return `
+      <div style="display:flex;gap:14px;padding:16px;margin-bottom:10px;
+                  background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:14px;">
+        <img src="${d.personalInfo.photograph}"
+          style="width:64px;height:64px;object-fit:cover;border-radius:10px;border:2px solid var(--glass-border);flex-shrink:0;"
+          onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(d.personalInfo.name)}&background=1a2f52&color=eeb902&size=64'" />
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+            <span style="font-weight:800;font-size:15px;color:var(--text-primary);">${d.personalInfo.name}</span>
+            <span style="font-size:11px;color:var(--text-muted);">${d.personalInfo.aliasName}</span>
+            <span style="background:${col.bg};color:${col.fg};border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">${d.status}</span>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary);">
+            <span>📞 ${d.personalInfo.mobile}</span>
+            <span>🩸 ${d.biometrics.bloodGroup}</span>
+            <span>📅 Age ${d.personalInfo.age}</span>
+          </div>
+          <div style="margin-top:6px;font-size:12px;color:var(--text-muted);">
+            📍 ${d.personalInfo.address}
+          </div>
+          ${fir.firNumber ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
+            📄 FIR: <span style="color:var(--gold-400);font-weight:600;">${fir.firNumber}</span>
+            · ${fir.sections ? fir.sections.split('(')[0].trim() : ''}
+            · Bail: <span style="color:#f87171;">${fir.bailStatus || 'N/A'}</span>
+          </div>` : ''}
+          <div style="margin-top:8px;display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;height:5px;background:var(--navy-600);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;width:${risk}%;background:${risk > 75 ? '#ef4444' : risk > 40 ? '#f59e0b' : '#22c55e'};border-radius:3px;"></div>
+            </div>
+            <span style="font-size:11px;color:${risk > 75 ? '#f87171' : risk > 40 ? '#fbbf24' : '#4ade80'};font-weight:700;">Risk ${risk}/100</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  _openModal('sho-village-detail-modal', `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <button onclick="document.getElementById('sho-village-detail-modal').remove();"
+        style="background:var(--glass-bg);border:1px solid var(--glass-border);
+               color:var(--text-muted);border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px;">← Back</button>
+      <div>
+        <div style="font-size:21px;font-weight:800;color:var(--gold-400);">🏘️ ${villageName}</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">
+          ${stationKey} PS ·
+          <strong style="color:${criminals.length > 0 ? '#f87171' : '#4ade80'};">${criminals.length} criminal record${criminals.length !== 1 ? 's' : ''}</strong>
+        </div>
+      </div>
+    </div>
+    <div>
+      ${criminals.length
+        ? cards
+        : '<div style="text-align:center;color:var(--text-muted);padding:40px 0;">✅ No criminal records for this village.</div>'}
+    </div>
+  `);
+}
+window.showSHOVillageDetailModal = showSHOVillageDetailModal;
+
+// ══════════════════════════════════════════════════════════
+//  SP: DISTRICT POLICE STATION DETAIL MODAL
+// ══════════════════════════════════════════════════════════
+function showDistrictStationDetails() {
+  const dist = MASTER_DATA.districts.find(d => d.id === currentUser.district);
+  if (!dist) return;
+
+  const dossiers       = getDossiers();
+  const totalStations  = dist.circles.reduce((n, c) => n + c.stations.length, 0);
+
+  const stationRows = dist.circles.flatMap(circle =>
+    circle.stations.map(station => {
+      const criminalCount = dossiers.filter(d =>
+        d.history.some(h => h.policeStation.toLowerCase() === station.toLowerCase())
+      ).length;
+      const wantedCount = dossiers.filter(d =>
+        d.status === 'Wanted' &&
+        d.history.some(h => h.policeStation.toLowerCase() === station.toLowerCase())
+      ).length;
+      const villageCount = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[station])
+        ? window.VILLAGES_BY_STATION[station].length : 0;
+
+      return `
+        <tr style="border-bottom:1px solid var(--glass-border);">
+          <td style="padding:12px 14px;">
+            <div style="font-weight:700;color:var(--gold-400);font-size:13px;">🚔 ${station}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${circle.name}</div>
+          </td>
+          <td style="padding:12px 14px;text-align:center;">
+            <span style="background:rgba(59,130,246,0.15);color:#60a5fa;
+                         border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;">
+              ${villageCount} 🏘️
+            </span>
+          </td>
+          <td style="padding:12px 14px;text-align:center;">
+            <span style="background:${criminalCount > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.1)'};
+                         color:${criminalCount > 0 ? '#f87171' : '#4ade80'};
+                         border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;">
+              ${criminalCount} 👤${wantedCount > 0 ? ' · <span style="color:#fbbf24;">' + wantedCount + ' wanted</span>' : ''}
+            </span>
+          </td>
+        </tr>`;
+    })
+  ).join('');
+
+  _openModal('station-detail-modal', `
+    <div style="margin-bottom:22px;">
+      <div style="font-size:22px;font-weight:800;color:var(--gold-400);">🚔 Police Stations</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">
+        ${dist.name} — Total: <strong style="color:var(--gold-300);">${totalStations} stations</strong>
+        across ${dist.circles.length} circle${dist.circles.length > 1 ? 's' : ''}
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--gold-600);">
+          <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Station / Circle</th>
+          <th style="padding:8px 14px;text-align:center;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Villages</th>
+          <th style="padding:8px 14px;text-align:center;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Criminals</th>
+        </tr>
+      </thead>
+      <tbody>${stationRows}</tbody>
+    </table>
+    <div style="margin-top:18px;text-align:right;">
+      <button onclick="document.getElementById('station-detail-modal').remove(); navigateTo('villages');"
+        style="background:linear-gradient(135deg,#EEB902,#d97706);color:#0f1f3d;
+               border:none;border-radius:8px;padding:9px 22px;font-weight:700;font-size:13px;cursor:pointer;">
+        🏘️ Browse Villages
+      </button>
+    </div>
+  `);
+}
+window.showDistrictStationDetails = showDistrictStationDetails;
+
+// ── Shared modal factory ──────────────────────────────────
+function _openModal(id, bodyHTML) {
+  // Remove existing if open
+  const old = document.getElementById(id);
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = id;
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(0,0,0,0.72);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;
+    animation:fadeInModal 0.2s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="
+      background:var(--navy-800);border:1px solid var(--glass-border);
+      border-radius:18px;padding:28px 30px;width:680px;max-width:95vw;
+      max-height:82vh;overflow-y:auto;position:relative;
+      box-shadow:0 28px 72px rgba(0,0,0,0.65);
+    ">
+      <button onclick="document.getElementById('${id}').remove()"
+        style="position:absolute;top:14px;right:14px;background:var(--glass-bg);
+               border:1px solid var(--glass-border);color:var(--text-primary);
+               border-radius:50%;width:30px;height:30px;font-size:15px;
+               cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
+      ${bodyHTML}
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+window._openModal = _openModal;
 
 function initDashboardCharts() {
   const stats = generateStatistics();
@@ -1349,7 +1635,36 @@ function renderUsersPage() {
 //  ADD DOSSIER MODAL
 // ══════════════════════════════════════════════════════════
 function openAddDossierModal() {
-  document.getElementById('add-dossier-modal').classList.add('open');
+  const modal = document.getElementById('add-dossier-modal');
+  modal.classList.add('open');
+
+  const distSelect = document.getElementById('f-district');
+  const stationSelect = document.getElementById('f-ps');
+  const villageSelect = document.getElementById('f-village');
+
+  if (distSelect && stationSelect && villageSelect) {
+    const isSHO = currentUser.level === 1;
+    const isSP = currentUser.level === 2;
+
+    // Reset dropdowns
+    distSelect.disabled = isSHO || isSP;
+    stationSelect.disabled = isSHO;
+
+    distSelect.value = currentUser.district === 'all' ? 'lucknow' : currentUser.district;
+    
+    // Populate stations for district
+    const stations = getStationsForDistrict(distSelect.value);
+    stationSelect.innerHTML = stations.map(s => `<option value="${s}">${s}</option>`).join('');
+    
+    // If SHO, set station to their station
+    if (isSHO) {
+      stationSelect.value = getCurrentStationKey();
+    }
+    
+    // Populate villages
+    const villages = getVillagesForStation(stationSelect.value);
+    villageSelect.innerHTML = villages.map(v => `<option value="${v}">${v}</option>`).join('');
+  }
 }
 function closeAddDossierModal() {
   document.getElementById('add-dossier-modal').classList.remove('open');
@@ -1375,7 +1690,8 @@ function submitNewDossier() {
       aadhaar: 'XXXX-XXXX-' + (document.getElementById('f-aadhaar').value || 'XXXX'),
       address: document.getElementById('f-address').value || 'N/A',
       permanentAddress: 'N/A',
-      photograph: `https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&q=80&w=300`
+      photograph: `https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&q=80&w=300`,
+      village: document.getElementById('f-village').value
     },
     biometrics: {
       fingerprints: 'Pending Capture',
@@ -1479,10 +1795,428 @@ function showToast(msg, type) {
   }, 3000);
 }
 
+// ── Village Directory Modules ──
+
+function getCurrentStationKey() {
+  if (!currentUser || !currentUser.station) return "";
+  return currentUser.station.split(' PS')[0].trim();
+}
+
+function getStationsForDistrict(districtId) {
+  const dist = MASTER_DATA.districts.find(d => d.id === districtId);
+  if (!dist) return [];
+  const stations = [];
+  dist.circles.forEach(c => {
+    c.stations.forEach(s => stations.push(s));
+  });
+  return stations;
+}
+
+function getVillagesForStation(stationName) {
+  return window.VILLAGES_BY_STATION[stationName] || [];
+}
+
+function getCriminalsInVillage(stationName, villageName) {
+  const dossiers = getDossiers();
+  return dossiers.filter(d => {
+    const isOfStation = d.history.some(h => h.policeStation.toLowerCase() === stationName.toLowerCase()) || 
+                         d.submittedBy.toLowerCase().includes(stationName.toLowerCase());
+    return isOfStation && d.personalInfo.village === villageName;
+  });
+}
+
+window.onVillageDistrictChange = function(districtId) {
+  selectedVillageDistrict = districtId;
+  const stations = getStationsForDistrict(districtId);
+  selectedVillageStation = stations[0] || '';
+  const villages = getVillagesForStation(selectedVillageStation);
+  selectedVillageName = villages[0] || null;
+  
+  const content = document.getElementById('page-content');
+  if (content) content.innerHTML = renderVillageDirectory();
+};
+
+window.onVillageStationChange = function(stationName) {
+  selectedVillageStation = stationName;
+  const villages = getVillagesForStation(stationName);
+  selectedVillageName = villages[0] || null;
+
+  const content = document.getElementById('page-content');
+  if (content) content.innerHTML = renderVillageDirectory();
+};
+
+window.selectVillage = function(villageName) {
+  selectedVillageName = villageName;
+  
+  // Highlight active card
+  document.querySelectorAll('.village-card').forEach(el => {
+    el.classList.remove('active');
+    el.style.background = 'var(--glass-bg)';
+    el.style.borderColor = 'var(--glass-border)';
+    const nameSpan = el.querySelector('span');
+    if (nameSpan) nameSpan.style.color = 'var(--text-primary)';
+  });
+  
+  // Find clicked card
+  const clickedCard = Array.from(document.querySelectorAll('.village-card')).find(el => {
+    const text = el.querySelector('span')?.textContent || '';
+    return text.includes(villageName);
+  });
+  
+  if (clickedCard) {
+    clickedCard.classList.add('active');
+    clickedCard.style.background = 'linear-gradient(135deg, rgba(238,185,2,0.15), rgba(15,31,61,0.8))';
+    clickedCard.style.borderColor = 'var(--gold-500)';
+    const nameSpan = clickedCard.querySelector('span');
+    if (nameSpan) nameSpan.style.color = 'var(--gold-400)';
+  }
+
+  // Render criminals list
+  const container = document.getElementById('village-criminals-container');
+  if (container) {
+    container.innerHTML = renderVillageCriminalsList(selectedVillageStation, selectedVillageName);
+  }
+};
+
+window.openAddDossierModalWithVillage = function() {
+  openAddDossierModal();
+  
+  const distSelect = document.getElementById('f-district');
+  if (distSelect) {
+    distSelect.value = selectedVillageDistrict;
+    window.onModalDistrictChange();
+  }
+  
+  const stationSelect = document.getElementById('f-ps');
+  if (stationSelect) {
+    stationSelect.value = selectedVillageStation;
+    window.onModalStationChange();
+  }
+
+  const villageSelect = document.getElementById('f-village');
+  if (villageSelect) {
+    villageSelect.value = selectedVillageName;
+  }
+};
+
+window.onModalDistrictChange = function() {
+  const districtSelect = document.getElementById('f-district');
+  const stationSelect = document.getElementById('f-ps');
+  const villageSelect = document.getElementById('f-village');
+  if (!districtSelect || !stationSelect || !villageSelect) return;
+
+  const districtId = districtSelect.value;
+  const stations = getStationsForDistrict(districtId);
+  
+  stationSelect.innerHTML = stations.map(s => `<option value="${s}">${s}</option>`).join('');
+  window.onModalStationChange();
+};
+
+window.onModalStationChange = function() {
+  const stationSelect = document.getElementById('f-ps');
+  const villageSelect = document.getElementById('f-village');
+  if (!stationSelect || !villageSelect) return;
+
+  const stationName = stationSelect.value;
+  const villages = getVillagesForStation(stationName);
+  
+  villageSelect.innerHTML = villages.map(v => `<option value="${v}">${v}</option>`).join('');
+};
+
+function renderVillageDirectory() {
+  const isSHO = currentUser.level === 1;
+  const isSP = currentUser.level === 2;
+  const isPHQ = currentUser.level === 3;
+
+  if (isSHO) {
+    selectedVillageDistrict = currentUser.district;
+    selectedVillageStation = getCurrentStationKey();
+  } else if (isSP) {
+    selectedVillageDistrict = currentUser.district;
+    const stations = getStationsForDistrict(selectedVillageDistrict);
+    if (!stations.includes(selectedVillageStation)) {
+      selectedVillageStation = stations[0] || '';
+    }
+  } else {
+    if (!selectedVillageDistrict || selectedVillageDistrict === 'all') selectedVillageDistrict = 'lucknow';
+    const stations = getStationsForDistrict(selectedVillageDistrict);
+    if (!stations.includes(selectedVillageStation)) {
+      selectedVillageStation = stations[0] || '';
+    }
+  }
+
+  const stations = getStationsForDistrict(selectedVillageDistrict);
+  const villages = getVillagesForStation(selectedVillageStation);
+
+  if (!selectedVillageName && villages.length > 0) {
+    selectedVillageName = villages[0];
+  }
+
+  let filtersHtml = `<div class="filter-bar" style="margin-bottom:20px; background:var(--glass-bg); padding:15px; border-radius:var(--radius-md); border:1px solid var(--glass-border); display:flex; gap:15px; align-items:center; flex-wrap:wrap;">`;
+  
+  if (isPHQ) {
+    filtersHtml += `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:10px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">District / जिला</label>
+        <select class="filter-select" id="vill-district-select" onchange="onVillageDistrictChange(this.value)">
+          ${MASTER_DATA.districts.map(d => `<option value="${d.id}" ${d.id === selectedVillageDistrict ? 'selected' : ''}>${d.name}</option>`).join('')}
+        </select>
+      </div>
+    `;
+  } else {
+    const distName = MASTER_DATA.districts.find(d => d.id === selectedVillageDistrict)?.name || selectedVillageDistrict;
+    filtersHtml += `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:10px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">District / जिला</label>
+        <div style="font-size:13px; font-weight:700; color:var(--gold-400); background:rgba(255,255,255,0.03); border:1px solid var(--glass-border); padding:7px 12px; border-radius:var(--radius-sm);">${distName}</div>
+      </div>
+    `;
+  }
+
+  if (isPHQ || isSP) {
+    filtersHtml += `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:10px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">Police Station / पुलिस स्टेशन</label>
+        <select class="filter-select" id="vill-station-select" onchange="onVillageStationChange(this.value)">
+          ${stations.map(s => `<option value="${s}" ${s === selectedVillageStation ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    `;
+  } else {
+    filtersHtml += `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:10px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">Police Station / पुलिस स्टेशन</label>
+        <div style="font-size:13px; font-weight:700; color:var(--gold-400); background:rgba(255,255,255,0.03); border:1px solid var(--glass-border); padding:7px 12px; border-radius:var(--radius-sm);">${selectedVillageStation}</div>
+      </div>
+    `;
+  }
+
+  filtersHtml += `
+    <div style="margin-left:auto; display:flex; gap:8px;">
+      ${isSHO ? `<button class="btn btn-primary btn-sm" onclick="openAddDossierModalWithVillage()">➕ Add Criminal Dossier</button>` : ''}
+    </div>
+  `;
+  filtersHtml += `</div>`;
+
+  return `
+    ${filtersHtml}
+    
+    <div class="village-layout" style="display:grid; grid-template-columns: 280px 1fr; gap: 20px;">
+      <!-- Left: Village List -->
+      <div class="village-list-panel" style="display:flex; flex-direction:column; gap:10px;">
+        <h4 style="font-size:12px; font-weight:800; color:var(--text-secondary); text-transform:uppercase; border-bottom:1px solid var(--glass-border); padding-bottom:8px;">🏘️ Villages (${villages.length})</h4>
+        <div class="village-cards-container" style="display:flex; flex-direction:column; gap:8px; max-height:65vh; overflow-y:auto; padding-right:5px;">
+          ${renderVillageCardsList(villages)}
+        </div>
+      </div>
+
+      <!-- Right: Criminals List -->
+      <div class="village-criminals-panel" id="village-criminals-container" style="background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-md); padding:20px; display:flex; flex-direction:column; gap:15px; min-height:50vh;">
+        ${renderVillageCriminalsList(selectedVillageStation, selectedVillageName)}
+      </div>
+    </div>
+  `;
+}
+
+function renderVillageCardsList(villages) {
+  if (villages.length === 0) {
+    return `<div style="font-size:12px; color:var(--text-muted); text-align:center; padding:20px;">No villages registered.</div>`;
+  }
+  
+  return villages.map(v => {
+    const criminals = getCriminalsInVillage(selectedVillageStation, v);
+    const total = criminals.length;
+    const wanted = criminals.filter(c => c.status === 'Wanted').length;
+    const active = criminals.filter(c => c.status === 'Active').length;
+    const onBail = criminals.filter(c => c.status === 'Out on Bail').length;
+    const inJail = criminals.filter(c => c.status === 'In Jail').length;
+
+    const isActive = v === selectedVillageName;
+
+    return `
+      <div class="village-card ${isActive ? 'active' : ''}" onclick="selectVillage('${v}')" style="
+        background:${isActive ? 'linear-gradient(135deg, rgba(238,185,2,0.15), rgba(15,31,61,0.8))' : 'var(--glass-bg)'};
+        border:1px solid ${isActive ? 'var(--gold-500)' : 'var(--glass-border)'};
+        padding:12px; border-radius:var(--radius-md); cursor:pointer; transition:var(--transition);
+        display:flex; flex-direction:column; gap:6px;
+      ">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:700; font-size:13px; color:${isActive ? 'var(--gold-400)' : 'var(--text-primary)'};">🏘️ ${v}</span>
+          <span class="badge ${total > 0 ? 'badge-active' : 'badge-pending'}" style="font-size:9px; padding:2px 6px;">${total}</span>
+        </div>
+        ${total > 0 ? `
+          <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:2px;">
+            ${wanted > 0 ? `<span class="badge badge-wanted" style="font-size:8px; padding:1px 4px;">Wanted: ${wanted}</span>` : ''}
+            ${active > 0 ? `<span class="badge badge-active" style="font-size:8px; padding:1px 4px;">Active: ${active}</span>` : ''}
+            ${onBail > 0 ? `<span class="badge badge-bail" style="font-size:8px; padding:1px 4px;">Bail: ${onBail}</span>` : ''}
+            ${inJail > 0 ? `<span class="badge badge-jail" style="font-size:8px; padding:1px 4px;">Jail: ${inJail}</span>` : ''}
+          </div>
+        ` : `<span style="font-size:10px; color:var(--text-muted);">No active history sheeters</span>`}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderVillageCriminalsList(stationName, villageName) {
+  if (!villageName) {
+    return `
+      <div class="empty-state" style="margin:auto; text-align:center;">
+        <div class="empty-icon" style="font-size:40px; margin-bottom:10px;">🏘️</div>
+        <div class="empty-title" style="font-size:16px; font-weight:700;">No Village Selected</div>
+        <div class="empty-desc" style="font-size:12px; color:var(--text-secondary);">Select a village from the left sidebar to view local criminal histories.</div>
+      </div>
+    `;
+  }
+
+  const criminals = getCriminalsInVillage(stationName, villageName);
+  
+  let headerHtml = `
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--glass-border); padding-bottom:10px; margin-bottom:10px;">
+      <div>
+        <h3 style="font-size:15px; font-weight:800; color:var(--gold-400);">🏘️ Gram: ${villageName}</h3>
+        <p style="font-size:11px; color:var(--text-secondary);">Police Station: ${stationName} | Total History Sheeters: ${criminals.length}</p>
+      </div>
+    </div>
+  `;
+
+  if (criminals.length === 0) {
+    return `
+      ${headerHtml}
+      <div class="empty-state" style="margin:auto; text-align:center; padding:40px;">
+        <div class="empty-icon" style="font-size:36px; margin-bottom:8px;">📂</div>
+        <div class="empty-title" style="font-size:14px; font-weight:700;">No Criminal Records</div>
+        <div class="empty-desc" style="font-size:11px; color:var(--text-secondary);">There are no criminal dossiers associated with this village yet.</div>
+      </div>
+    `;
+  }
+
+  const listHtml = criminals.map(d => {
+    const risk = calculateRiskScore(d);
+    const riskClass = risk >= 70 ? 'risk-high' : risk >= 40 ? 'risk-medium' : 'risk-low';
+    
+    const firListHtml = d.history.map(h => `
+      <div style="padding:8px 10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:4px; margin-bottom:6px; font-size:11px;">
+        <div style="display:flex; justify-content:space-between; font-weight:700; color:var(--gold-400);">
+          <span>⚖️ ${h.firNumber} / ${h.crimeNumber}</span>
+          <span>Bail: ${h.bailStatus}</span>
+        </div>
+        <div style="color:var(--red-400); font-weight:600; margin-top:2px;">Sections: ${h.sections}</div>
+        <div style="color:var(--text-secondary); margin-top:2px; font-size:10px;">
+          📍 ${h.policeStation} PS | Court Case: ${h.courtCaseDetails} | Status: ${h.chargeSheetStatus}
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      <div class="village-criminal-row-card" style="
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-md);
+        padding: 16px;
+        margin-bottom: 16px;
+        transition: var(--transition);
+      ">
+        <div style="display:grid; grid-template-columns: 100px 1.2fr 1.2fr; gap: 16px;">
+          <!-- Col 1: Photo & Status -->
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <img style="width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:6px; border:2px solid var(--glass-border);" 
+                 src="${d.personalInfo.photograph}" alt="${d.personalInfo.name}" 
+                 onerror="this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;100&quot; height=&quot;133&quot;><rect width=&quot;100&quot; height=&quot;133&quot; fill=&quot;%230f1f3d&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; text-anchor=&quot;middle&quot; fill=&quot;%23EEB902&quot; font-size=&quot;32&quot;>${d.personalInfo.name[0]}</text></svg>'" />
+            <div style="text-align:center;">${statusBadge(d.status)}</div>
+            
+            <div style="width:100%; margin-top:4px;">
+              <div style="font-size:9px; color:var(--text-muted); text-align:center; font-weight:700; text-transform:uppercase;">Risk Level</div>
+              <div class="risk-bar ${riskClass}" style="height:6px; margin-top:3px;"><div class="risk-bar-fill" style="width:${risk}%"></div></div>
+              <div style="font-size:10px; font-weight:700; text-align:center; margin-top:2px; color:${risk>=70?'#f87171':risk>=40?'#fbbf24':'#4ade80'}">${risk}/100</div>
+            </div>
+          </div>
+
+          <!-- Col 2: Personal & Surveillance Info -->
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div>
+              <span class="criminal-id" style="font-size:10px;">${d.id}</span>
+              <h4 style="font-size:14px; font-weight:800; color:var(--text-primary); margin-top:2px;">${d.personalInfo.name}</h4>
+              <div style="font-size:11px; color:var(--text-secondary);">Alias: <strong>${d.personalInfo.aliasName}</strong></div>
+            </div>
+            
+            <div style="font-size:11px; display:flex; flex-direction:column; gap:3px; color:var(--text-secondary); margin-top:4px;">
+              <div>Father's Name: <strong>${d.personalInfo.fatherName}</strong></div>
+              <div>📅 DOB: <strong>${d.personalInfo.dob} (Age ${d.personalInfo.age})</strong></div>
+              <div>📱 Mobile: <strong>${d.personalInfo.mobile}</strong></div>
+              <div>🪪 Aadhaar: <strong>${d.personalInfo.aadhaar}</strong></div>
+              <div style="margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.05);">
+                🏠 <strong>Current Address:</strong> ${d.personalInfo.address}
+              </div>
+              <div>
+                🏢 <strong>Permanent Address:</strong> ${d.personalInfo.permanentAddress}
+              </div>
+            </div>
+
+            <div style="margin-top:6px; padding:8px; background:rgba(238,185,2,0.04); border-left:3px solid var(--gold-500); border-radius:4px; font-size:11px;">
+              <div style="font-weight:700; color:var(--gold-400); margin-bottom:2px;">🕵️ Surveillance — HS: ${d.surveillance.historySheetNumber}</div>
+              <div style="color:var(--text-secondary); font-size:10px;">Category: <strong>${d.surveillance.surveillanceCategory}</strong></div>
+              <div style="margin-top:3px; font-style:italic; color:var(--text-primary); font-size:10px;">"${d.surveillance.surveillanceNotes}"</div>
+            </div>
+          </div>
+
+          <!-- Col 3: FIR Details & History -->
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:11px; font-weight:700; color:var(--text-primary); border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:3px;">⚖️ FIR & Criminal History</div>
+            <div style="max-height:220px; overflow-y:auto; padding-right:2px;">
+              ${firListHtml}
+            </div>
+
+            <div style="margin-top:auto; display:flex; justify-content:flex-end; gap:6px; padding-top:8px;">
+              <button class="btn btn-xs btn-secondary" onclick="openDossierModal(getDossiers().find(x=>x.id==='${d.id}'))">👁️ View Full Dossier</button>
+              ${currentUser.level === 1 ? `
+                <button class="btn btn-xs btn-primary" onclick="openEditStatusInVillage('${d.id}')">✏️ Quick Status Edit</button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    ${headerHtml}
+    <div class="village-criminals-scroll" style="display:flex; flex-direction:column; overflow-y:auto; max-height:68vh; padding-right:4px;">
+      ${listHtml}
+    </div>
+  `;
+}
+
+window.openEditStatusInVillage = function(id) {
+  const dossiers = getDossiers();
+  const d = dossiers.find(x => x.id === id);
+  if (!d) return;
+
+  const newStatus = prompt(`Update Status for ${d.personalInfo.name} (Current: ${d.status})\nOptions: Wanted, Active, In Jail, Out on Bail`, d.status);
+  if (newStatus === null) return;
+  
+  const validStatuses = ["Wanted", "Active", "In Jail", "Out on Bail"];
+  if (!validStatuses.includes(newStatus)) {
+    alert("Invalid status! Choose from: Wanted, Active, In Jail, Out on Bail");
+    return;
+  }
+
+  const remarks = prompt("Enter beat officer remarks / update surveillance notes:", d.surveillance.beatOfficerRemarks);
+  if (remarks === null) return;
+
+  d.status = newStatus;
+  d.surveillance.beatOfficerRemarks = remarks;
+  d.surveillance.surveillanceNotes = remarks;
+  d.lastUpdated = new Date().toISOString();
+
+  updateDossier(d, currentUser);
+  showToast(`✅ Status for ${d.personalInfo.name} updated to ${newStatus}.`, 'success');
+  navigateTo('villages');
+};
+
 // ══════════════════════════════════════════════════════════
 //  LOGIN / LOGOUT
 // ══════════════════════════════════════════════════════════
-function doLogin() {
+async function doLogin() {
   const role = document.getElementById('login-role').value;
   const username = document.getElementById('login-username').value;
   const password = document.getElementById('login-password').value;
@@ -1492,18 +2226,19 @@ function doLogin() {
   }
 
   currentUser = { ...USERS[role], username };
-  addAuditLog(currentUser.username, currentUser.role, 'Login', `User logged in as ${currentUser.role}`);
 
+  // Show the app shell immediately while data loads
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
-
-  // Update sidebar user info
-  document.getElementById('user-avatar').textContent = currentUser.avatar;
-  document.getElementById('user-name-display').textContent = currentUser.name;
-  document.getElementById('user-role-display').textContent = currentUser.role;
+  document.getElementById('user-avatar').textContent         = currentUser.avatar;
+  document.getElementById('user-name-display').textContent   = currentUser.name;
+  document.getElementById('user-role-display').textContent   = currentUser.role;
   document.getElementById('user-station-display').textContent = currentUser.station;
 
-  initDatabase();
+  // Ensure DB is loaded (instant if already done, awaits if still loading)
+  await initDatabase();
+
+  addAuditLog(currentUser.username, currentUser.role, 'Login', `User logged in as ${currentUser.role}`);
   buildSidebar();
   navigateTo('dashboard');
 }
@@ -1547,5 +2282,4 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// Auto-initialize DB on load
-initDatabase();
+// Note: initDatabase() is auto-called by backend.js on page load.
