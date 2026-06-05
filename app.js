@@ -333,38 +333,37 @@ function renderDashboard() {
         </div>
       </section>
 
-      <!-- SECTION 3: GEOSPATIAL MAP & RECENT DOSSIERS (Lazy Loaded) -->
+      <!-- SECTION 3: GEOSPATIAL MAP (Lazy Loaded) -->
       <section id="dash-sec-map" class="dashboard-section lazy-section">
-        <div class="dashboard-row-two-col map-dossiers-row">
-          
-          <!-- Leaflet GIS Map Card -->
-          <div class="map-card-modern">
-            <div class="section-header">
-              <h3>🗺️ GIS Crime Mapping & Hotspots</h3>
+        <!-- Leaflet GIS Map Card (Full Width / Large Size) -->
+        <div class="map-card-modern large-map-card">
+          <div class="section-header">
+            <h3>🗺️ GIS Crime Mapping & Hotspots</h3>
+          </div>
+          <div id="dashboard-map-container" class="map-container-modern large-map-container">
+            <div class="map-lazy-placeholder">
+              <span class="spinner-icon">📡</span> Loading GIS Crime Mapping Engine...
             </div>
-            <div id="dashboard-map-container" class="map-container-modern">
-              <div class="map-lazy-placeholder">
-                <span class="spinner-icon">📡</span> Loading GIS Crime Mapping Engine...
+          </div>
+        </div>
+      </section>
+      
+      <!-- SECTION 4: RECENT DOSSIERS (Lazy Loaded) -->
+      <section id="dash-sec-dossiers" class="dashboard-section lazy-section">
+        <!-- Recent Criminal Dossiers (Full Width) -->
+        <div class="recent-dossiers-card-full">
+          <div class="chart-card-header">
+            <div class="chart-card-header-flex">
+              <div class="chart-card-title">📁 Recent Dossiers</div>
+              <div class="header-buttons-gap">
+                ${currentUser.level === 1 ? `<button class="btn btn-primary btn-xs" onclick="openAddDossierModal()">➕ Add</button>` : ''}
+                <button class="btn btn-secondary btn-xs" onclick="navigateTo('dossiers')">View All</button>
               </div>
             </div>
           </div>
-          
-          <!-- Recent Criminal Dossiers -->
-          <div class="recent-dossiers-card">
-            <div class="chart-card-header">
-              <div class="chart-card-header-flex">
-                <div class="chart-card-title">📁 Recent Dossiers</div>
-                <div class="header-buttons-gap">
-                  ${currentUser.level === 1 ? `<button class="btn btn-primary btn-xs" onclick="openAddDossierModal()">➕ Add</button>` : ''}
-                  <button class="btn btn-secondary btn-xs" onclick="navigateTo('dossiers')">View All</button>
-                </div>
-              </div>
-            </div>
-            <div class="table-scroll-container-modern">
-              ${renderDossierTable(dossiers.slice(0, 5))}
-            </div>
+          <div class="table-scroll-container-modern">
+            ${renderDossierTable(dossiers.slice(0, 5))}
           </div>
-
         </div>
       </section>
 

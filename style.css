@@ -1364,16 +1364,41 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
   height: 420px;
 }
 
-.recent-dossiers-card .chart-card-header-flex {
+.recent-dossiers-card .chart-card-header-flex,
+.recent-dossiers-card-full .chart-card-header-flex {
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
 }
 
-.recent-dossiers-card .header-buttons-gap {
+.recent-dossiers-card .header-buttons-gap,
+.recent-dossiers-card-full .header-buttons-gap {
   display: flex;
   gap: 6px;
+}
+
+.recent-dossiers-card-full {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  height: 380px;
+}
+.recent-dossiers-card-full:hover {
+  border-color: rgba(238, 185, 2, 0.25);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.large-map-card {
+  height: 580px;
+}
+.large-map-container {
+  height: 500px;
 }
 
 .table-scroll-container-modern {
