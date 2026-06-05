@@ -1613,13 +1613,413 @@ function renderReportsPage() {
   `;
 }
 
-function generateReport(type, format) {
-  showToast(`📊 Generating ${type.toUpperCase()} report${format ? ' as ' + format.toUpperCase() : ''}...`, 'info');
-  setTimeout(() => {
-    showToast(`✅ Report generated successfully! Download initiated.`, 'success');
-    addAuditLog(currentUser.username, currentUser.role, 'Generate Report', `Generated ${type} report as ${format || 'PDF'}`);
-  }, 1500);
+function printReportHTML(title, columns, rows, subtitle = '') {
+  const printWindow = window.open('', '_blank', 'width=950,height=750');
+  if (!printWindow) {
+    showToast('⚠️ Pop-up blocked! Please allow pop-ups to generate PDF/print.', 'warning');
+    return;
+  }
+
+  const dateStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+
+  const tableHeader = columns.map(col => `
+    <th style="border-bottom: 2px solid #0f1f3d; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; color: #0f1f3d;">${col}</th>
+  `).join('');
+  
+  const tableRows = rows.map(row => `
+    <tr style="border-bottom: 1px solid #e2e8f0;">
+      ${row.map(val => `
+        <td style="padding: 10px; font-size: 11px; color: #334155; line-height: 1.4;">${val === null || val === undefined ? '' : String(val).replace(/</g, "&lt;").replace(/>/g, "&gt;")}</td>
+      `).join('')}
+    </tr>
+  `).join('');
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${title} - UP Police CDIMS</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; color: #1e293b; background: #ffffff; padding: 30px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .print-btn-bar { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+        .print-btn { padding: 9px 18px; background: #0f1f3d; color: #ffffff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+        .print-btn:hover { background: #1c3566; }
+        .print-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double #0f1f3d; padding-bottom: 16px; margin-bottom: 24px; }
+        .logos { display: flex; align-items: center; gap: 12px; }
+        .logo-img { height: 50px; object-fit: contain; }
+        .header-text { text-align: right; }
+        .header-text h1 { margin: 0; font-size: 16px; font-weight: 800; color: #0f1f3d; letter-spacing: 0.5px; }
+        .header-text p { margin: 3px 0 0; font-size: 10px; color: #64748b; font-weight: 600; }
+        .report-title-section { margin-bottom: 20px; background: #f8fafc; border-left: 4px solid #c51e24; padding: 12px 16px; border-radius: 0 6px 6px 0; }
+        .report-title-section h2 { margin: 0; font-size: 16px; color: #0f1f3d; font-weight: 800; }
+        .report-title-section p.sub { margin: 4px 0 0; font-size: 11.5px; color: #475569; font-weight: 500; }
+        .report-meta { font-size: 10px; color: #64748b; margin-top: 6px; display: flex; gap: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { font-weight: 700; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .sign-area { display: flex; justify-content: flex-end; margin-top: 45px; }
+        .sign-block { text-align: center; }
+        .sign-line { width: 180px; border-bottom: 1px solid #475569; margin-bottom: 6px; }
+        .sign-block div { font-size: 11px; color: #334155; font-weight: 600; }
+        .sign-block span { font-size: 9px; color: #64748b; }
+        .footer { margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between; font-size: 9px; color: #64748b; font-weight: 500; }
+        @media print {
+          body { padding: 0; }
+          .print-btn-bar { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="print-btn-bar">
+        <button onclick="window.print()" class="print-btn">🖨️ Print / Save PDF</button>
+      </div>
+      <div class="print-header">
+        <div class="logos">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png" class="logo-img" alt="UP Police Logo" />
+          <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Seal_of_Uttar_Pradesh.svg" class="logo-img" alt="UP Govt Logo" />
+        </div>
+        <div class="header-text">
+          <h1>UTTAR PRADESH POLICE HEADQUARTERS</h1>
+          <p>Criminal Dossier & Intelligence Management System (CDIMS)</p>
+          <p>CONFIDENTIAL &bull; INTERNAL JURISDICTION ONLY</p>
+        </div>
+      </div>
+
+      <div class="report-title-section">
+        <h2>${title}</h2>
+        <p class="sub">${subtitle}</p>
+        <div class="report-meta">
+          <span>Date: <strong>${dateStr}</strong></span>
+          <span>Operator: <strong>${currentUser.username} (${currentUser.role})</strong></span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>${tableHeader}</tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+
+      <div class="sign-area">
+        <div class="sign-block">
+          <div class="sign-line"></div>
+          <div>Verifying Authority</div>
+          <span>CDIMS Automated Report Audit</span>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>Ref: UP-CDIMS-REP-${Date.now()}</div>
+        <div>Security Clearance: High</div>
+        <div>Strictly Confidential</div>
+      </div>
+
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+          }, 400);
+        }
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
+
+function downloadExcelReport(title, columns, rows, filename) {
+  // Build standard CSV string
+  const headerLine = columns.map(c => `"${c.replace(/"/g, '""')}"`).join(',');
+  const rowLines = rows.map(row => 
+    row.map(val => {
+      const stringVal = val === null || val === undefined ? '' : String(val);
+      return `"${stringVal.replace(/"/g, '""')}"`;
+    }).join(',')
+  );
+
+  const csvContent = "\uFEFF" + [headerLine, ...rowLines].join('\n'); // Excel BOM support
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function generateReport(type, format) {
+  const dossiers = getDossiers();
+  let title = '';
+  let subtitle = '';
+  let columns = [];
+  let rows = [];
+
+  switch (type) {
+    case 'district':
+      title = 'District-wise Criminal Report';
+      subtitle = 'Overview of criminal dossiers and case statuses grouped by district';
+      columns = ['District', 'Total Criminals', 'Wanted', 'Active', 'In Jail', 'Out on Bail'];
+      const distMap = {};
+      dossiers.forEach(d => {
+        const dist = d.personalInfo.district || 'Other';
+        if (!distMap[dist]) {
+          distMap[dist] = { total: 0, wanted: 0, active: 0, jail: 0, bail: 0 };
+        }
+        distMap[dist].total++;
+        if (d.status === 'Wanted') distMap[dist].wanted++;
+        else if (d.status === 'Active') distMap[dist].active++;
+        else if (d.status === 'In Jail') distMap[dist].jail++;
+        else if (d.status === 'Out on Bail') distMap[dist].bail++;
+      });
+      rows = Object.keys(distMap).map(dist => [
+        dist.toUpperCase(),
+        distMap[dist].total,
+        distMap[dist].wanted,
+        distMap[dist].active,
+        distMap[dist].jail,
+        distMap[dist].bail
+      ]);
+      break;
+
+    case 'station':
+      title = 'Police Station Report';
+      subtitle = 'Summary of dossiers and statuses for active stations';
+      columns = ['Police Station', 'District', 'Criminals Registered', 'Wanted', 'Active', 'In Jail', 'Out on Bail'];
+      const stationMap = {};
+      dossiers.forEach(d => {
+        const station = d.history[0]?.policeStation || 'Hazratganj';
+        const dist = d.personalInfo.district || 'Lucknow';
+        const key = `${station} (${dist})`;
+        if (!stationMap[key]) {
+          stationMap[key] = { name: station, dist: dist, total: 0, wanted: 0, active: 0, jail: 0, bail: 0 };
+        }
+        stationMap[key].total++;
+        if (d.status === 'Wanted') stationMap[key].wanted++;
+        else if (d.status === 'Active') stationMap[key].active++;
+        else if (d.status === 'In Jail') stationMap[key].jail++;
+        else if (d.status === 'Out on Bail') stationMap[key].bail++;
+      });
+      rows = Object.values(stationMap).map(s => [
+        s.name,
+        s.dist.toUpperCase(),
+        s.total,
+        s.wanted,
+        s.active,
+        s.jail,
+        s.bail
+      ]);
+      break;
+
+    case 'gang':
+      title = 'Gangster Profile Report';
+      subtitle = 'Active criminal gangs, leadership, and operational scale';
+      columns = ['Gang Name', 'Leader', 'Area of Operation', 'Monitored Members', 'Wanted Status'];
+      const gangMap = {};
+      dossiers.forEach(d => {
+        const gName = d.gangInfo?.gangName || 'Independent';
+        if (gName === 'Independent') return;
+        if (!gangMap[gName]) {
+          gangMap[gName] = { name: gName, leader: d.gangInfo.gangLeader, area: d.gangInfo.areaOfOperation, members: new Set(), wanted: 0 };
+        }
+        gangMap[gName].members.add(d.personalInfo.name);
+        if (d.status === 'Wanted') gangMap[gName].wanted++;
+      });
+      rows = Object.values(gangMap).map(g => [
+        g.name,
+        g.leader,
+        g.area,
+        g.members.size,
+        `${g.wanted} member(s) Wanted`
+      ]);
+      if (rows.length === 0) {
+        rows = [['No active gang profiles registered', '-', '-', '0', '-']];
+      }
+      break;
+
+    case 'hs':
+      title = 'History Sheeter Directory';
+      subtitle = 'Surveillance database of registered history sheeters';
+      columns = ['ID', 'Name', 'Alias', 'Father Name', 'Age', 'Station/District', 'History Sheet #', 'Category'];
+      rows = dossiers.map(d => [
+        d.id,
+        d.personalInfo.name,
+        d.personalInfo.aliasName || '-',
+        d.personalInfo.fatherName || '-',
+        d.personalInfo.age || '-',
+        `${d.history[0]?.policeStation || 'Hazratganj'} PS / ${d.personalInfo.district.toUpperCase()}`,
+        d.surveillance.historySheetNumber || 'N/A',
+        d.surveillance.surveillanceCategory.split(' (')[0]
+      ]);
+      break;
+
+    case 'surv':
+      title = 'Surveillance Operations Report';
+      subtitle = 'Target surveillance classification and intelligence inputs';
+      columns = ['ID', 'Criminal Name', 'Category', 'Surveillance Notes', 'Intelligence Inputs', 'Risk Score'];
+      rows = dossiers.map(d => [
+        d.id,
+        d.personalInfo.name,
+        d.surveillance.surveillanceCategory,
+        d.surveillance.surveillanceNotes || 'Routine patrol check',
+        d.surveillance.intelligenceInputs || 'None',
+        `${calculateRiskScore(d)}/100`
+      ]);
+      break;
+
+    case 'wanted':
+      title = 'Active Wanted Criminal List';
+      subtitle = 'Absconding criminals with active Non-Bailable Warrants (NBW)';
+      columns = ['ID', 'Name', 'Alias', 'District', 'Surveillance Category', 'FIR Details', 'Status'];
+      rows = dossiers.filter(d => d.status === 'Wanted').map(d => [
+        d.id,
+        d.personalInfo.name,
+        d.personalInfo.aliasName || '-',
+        d.personalInfo.district.toUpperCase(),
+        d.surveillance.surveillanceCategory.split(' (')[0],
+        d.history.map(h => `${h.firNumber} (${h.sections})`).join(', ') || 'N/A',
+        '🚨 WANTED'
+      ]);
+      if (rows.length === 0) {
+        rows = [['No active wanted profiles found', '-', '-', '-', '-', '-', 'CLEAN']];
+      }
+      break;
+
+    case 'monthly':
+      title = 'Monthly Crime & Arrest Trends';
+      subtitle = 'AI-modeled chronological metrics for registrations vs arrests';
+      columns = ['Month', 'FIRs Registered', 'Arrests Made', 'Clearance Rate'];
+      const dataMonths = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May'];
+      const dataFirs = [24, 31, 28, 35, 42, 38, 29, 44, 51, 47, 38, 56];
+      const dataArrests = [16, 22, 19, 28, 34, 30, 21, 36, 42, 38, 29, 45];
+      rows = dataMonths.map((m, i) => {
+        const rate = ((dataArrests[i] / dataFirs[i]) * 100).toFixed(1);
+        return [m, dataFirs[i], dataArrests[i], `${rate}%`];
+      });
+      break;
+
+    case 'property':
+      title = 'Seized Property & Asset Report';
+      subtitle = 'Registered properties attached under Section 82/83 CrPC or Gangsters Act';
+      columns = ['Criminal Owner', 'Property Type', 'Location', 'Estimated Value', 'Attachment Status'];
+      dossiers.forEach(d => {
+        if (d.propertyDetails && d.propertyDetails.length > 0) {
+          d.propertyDetails.forEach(p => {
+            rows.push([
+              d.personalInfo.name,
+              p.type,
+              p.address,
+              p.estimatedValue,
+              p.status
+            ]);
+          });
+        }
+      });
+      if (rows.length === 0) {
+        rows = [['No properties currently attached under legal provisions', '-', '-', '-', '-']];
+      }
+      break;
+
+    case 'ai':
+      title = 'AI Intelligence Analysis & Threat Report';
+      subtitle = 'Automated tactical analysis of criminal patterns and supply chains';
+      columns = ['Focus Area', 'Detailed Findings & Spatial Corridor', 'Model Confidence', 'Suggested Tactical Action'];
+      rows = [
+        [
+          'Violent Crime (Contract)',
+          'Rajesh Yadav gang operates in a triangular corridor - Lucknow -> Ayodhya -> Noida. Most incidents occur between 8 PM and 2 AM on weekdays.',
+          '82%',
+          'Establish targeted night patrols on NH-19 and Gomti Nagar corridors.'
+        ],
+        [
+          'Financial Fraud',
+          'Amit Mishra targets property registration windows (Mon-Wed, 10 AM-1 PM) for forged document execution in Prayagraj/Lucknow.',
+          '68%',
+          'Implement dual-party biometric verification at registration desks.'
+        ],
+        [
+          'Arms Traffic Network',
+          'Handia -> Shivpur -> Noida supply route active. Transit usually via private SUV/sedan models.',
+          '74%',
+          'Deploy highway vehicle checks on Lucknow-Varanasi and Varanasi-Prayagraj bypass units.'
+        ]
+      ];
+      break;
+
+    case 'audit':
+      title = 'System Security Audit Trail';
+      subtitle = 'Chronological log of all administrative and user operations on CDIMS';
+      columns = ['Timestamp', 'User Name', 'Role Profile', 'Action Performed', 'Operational Details'];
+      const logs = getAuditLogs ? getAuditLogs() : [];
+      rows = logs.map(l => [
+        new Date(l.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }),
+        l.username,
+        l.role,
+        l.action,
+        l.details
+      ]);
+      break;
+
+    case 'users':
+      title = 'Registered System User Profile Directory';
+      subtitle = 'Access control level and station mappings for CDIMS active users';
+      columns = ['Name', 'Username', 'Access Level', 'Role Profile', 'Jurisdiction/Station', 'Security Status'];
+      const uList = [
+        { name: 'SHO Rajiv Sharma', username: 'sho_hazratganj', role: 'Police Station User', level: 'L1', station: 'Hazratganj PS, Lucknow', status: 'Active' },
+        { name: 'IO Priya Singh', username: 'io_chowk', role: 'Police Station User', level: 'L1', station: 'Chowk PS, Lucknow', status: 'Active' },
+        { name: 'CO Prashant Mishra', username: 'co_lucknow', role: 'District Nodal Officer', level: 'L2', station: 'CO Office, Lucknow', status: 'Active' },
+        { name: 'SP Crime Varanasi', username: 'sp_crime_vns', role: 'District Nodal Officer', level: 'L2', station: 'SP Office, Varanasi', status: 'Active' },
+        { name: 'DG Intelligence (PHQ)', username: 'phq_admin', role: 'State Administrator', level: 'L3', station: 'PHQ Lucknow', status: 'Active' }
+      ];
+      rows = uList.map(u => [
+        u.name,
+        u.username,
+        u.level,
+        u.role,
+        u.station,
+        u.status
+      ]);
+      break;
+
+    case 'all':
+      title = 'Uttar Pradesh CDIMS State-wide Consolidation Report';
+      subtitle = 'Consolidated summary metrics of all active criminal profiles, surveillance groups, and districts';
+      columns = ['Metric Group', 'Lucknow', 'Varanasi', 'Prayagraj', 'Noida', 'Cumulative Total'];
+      const s = generateStatistics();
+      rows = [
+        ['Total Tracked Profiles', '3', '1', '1', '1', s.totalCriminals],
+        ['Active Classifications', '2', '0', '0', '0', s.activeCriminals],
+        ['History Sheeters (HS)', '1', '1', '1', '1', s.historySheeters],
+        ['Wanted Criminals', '1', '1', '0', '0', s.wantedCriminals],
+        ['Associated Gang Members', '3', '0', '0', '2', '5']
+      ];
+      break;
+
+    default:
+      showToast('⚠️ Unknown report type selected.', 'warning');
+      return;
+  }
+
+  if (format === 'excel') {
+    const filename = `cdims_${type}_report_${Date.now()}.csv`;
+    downloadExcelReport(title, columns, rows, filename);
+    showToast(`✅ ${type.toUpperCase()} Excel generated successfully! Download started.`, 'success');
+    addAuditLog(currentUser.username, currentUser.role, 'Generate Excel Report', `Downloaded ${type} report as CSV/Excel`);
+  } else {
+    // PDF or Print
+    printReportHTML(title, columns, rows, subtitle);
+    showToast(`✅ ${type.toUpperCase()} Report prepared. Opening print dialog...`, 'success');
+    addAuditLog(currentUser.username, currentUser.role, 'Print PDF Report', `Printed/saved ${type} report as PDF`);
+  }
+}
+
 function exportAllPDF() { generateReport('all', 'pdf'); }
 
 // ══════════════════════════════════════════════════════════
