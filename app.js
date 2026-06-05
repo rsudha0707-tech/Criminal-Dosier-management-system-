@@ -202,8 +202,7 @@ function navigateTo(view) {
       header.textContent = t('dashboard');
       headerSub.textContent = 'Uttar Pradesh Police — Real-time Criminal Intelligence Overview';
       content.innerHTML = renderDashboard();
-      initDashboardCharts();
-      setTimeout(() => initCrimeMap('dashboard-map-container'), 200);
+      initDashboardLazyLoading();
       break;
     case 'villages':
       header.textContent = currentLang === 'hi' ? '🏘️ ग्राम निर्देशिका' : '🏘️ Village Directory';
@@ -273,112 +272,142 @@ function renderDashboard() {
 
   return `
     <div class="dashboard-console">
-      <!-- Stats Row Compact -->
-      <div class="stats-row-compact">
-        ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '', "navigateTo('dossiers')")}
-        ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger', "navigateTo('dossiers')")}
-        ${statCardCompact('📋', stats.historySheeters, t('historySheeters'), 'warning', "navigateTo('dossiers')")}
-        ${statCardCompact('⛔', stats.gangsters, t('gangsters'), 'danger', "navigateTo('dossiers')")}
-        ${statCardCompact('🚨', stats.wantedCriminals, t('wantedCriminals'), 'danger', "navigateTo('dossiers')")}
-        ${renderRoleSpecificStatCards()}
-      </div>
+      <!-- SECTION 1: METRICS OVERVIEW (Loaded Immediately) -->
+      <section id="dash-sec-overview" class="dashboard-section visible">
+        ${pendingDossiers.length > 0 && currentUser.level >= 2 ? `
+        <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:12px; margin-bottom: 16px; animation: fadeInModal 0.3s ease;">
+          <span style="font-size:22px;">⚠️</span>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; color:#fbbf24; font-size:13px;">Pending Review: ${pendingDossiers.length} Criminal Dossiers</div>
+            <div style="font-size:11px; color:var(--text-secondary);">Dossiers awaiting verification & approval for district records</div>
+          </div>
+          <button class="btn btn-sm" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);" onclick="navigateTo('dossiers')">Verify Records</button>
+        </div>` : ''}
 
-      <!-- Dashboard Workspace Grid -->
-      <div class="dashboard-workspace">
-        
-        <!-- Left Column: Alerts Feed + District Cases -->
-        <div class="dashboard-workspace-col">
-          <div class="dashboard-alerts-card">
+        <div class="stats-grid-modern">
+          ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '', "navigateTo('dossiers')")}
+          ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger', "navigateTo('dossiers')")}
+          ${statCardCompact('📋', stats.historySheeters, t('historySheeters'), 'warning', "navigateTo('dossiers')")}
+          ${statCardCompact('⛔', stats.gangsters, t('gangsters'), 'danger', "navigateTo('dossiers')")}
+          ${statCardCompact('🚨', stats.wantedCriminals, t('wantedCriminals'), 'danger', "navigateTo('dossiers')")}
+          ${renderRoleSpecificStatCards()}
+        </div>
+      </section>
+
+      <!-- SECTION 2: SURVEILLANCE & LIVE ALERTS (Lazy Loaded) -->
+      <section id="dash-sec-alerts" class="dashboard-section lazy-section">
+        <div class="dashboard-row-two-col">
+          
+          <!-- Live Alerts Feed -->
+          <div class="dashboard-alerts-card-modern">
             <div class="section-header">
               <h3>🔔 Live Alerts</h3>
               <button class="btn btn-xs btn-secondary" onclick="navigateTo('alerts')">All</button>
             </div>
-            <div class="alert-feed">
+            <div class="alert-feed-modern">
               ${LIVE_ALERTS.map(a => `
-                <div class="alert-item alert-${a.type}" style="padding: 8px 10px; margin-bottom: 6px;">
-                  <span class="alert-icon" style="font-size: 14px;">${a.icon}</span>
-                  <div>
-                    <div class="alert-title" style="font-size: 11px;">${a.title}</div>
-                    <div class="alert-body" style="font-size: 10px; line-height: 1.3; margin-top: 1px;">${a.body}</div>
-                    <div class="alert-time" style="font-size: 9px; margin-top: 2px;">🕐 ${a.time}</div>
+                <div class="alert-item alert-${a.type}">
+                  <span class="alert-icon">${a.icon}</span>
+                  <div class="alert-content-wrapper">
+                    <div class="alert-title">${a.title}</div>
+                    <div class="alert-body">${a.body}</div>
+                    <div class="alert-time">🕐 ${a.time}</div>
                   </div>
                 </div>
               `).join('')}
             </div>
           </div>
-          <div class="chart-card" style="height: 180px; flex: none;">
-            <div class="chart-card-header" style="margin-bottom: 8px;">
-              <div>
-                <div class="chart-card-title">🏛️ District-wise Cases</div>
+
+          <!-- District-wise Cases -->
+          <div class="chart-card-modern district-cases-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">🏛️ District-wise Cases</div>
+            </div>
+            <div class="district-bars-modern" id="district-bars">
+              <div class="map-lazy-placeholder">
+                <span class="spinner-icon">📊</span> Loading district metrics...
               </div>
             </div>
-            <div id="district-bars" style="overflow-y: auto; flex: 1; padding-right: 4px;"></div>
           </div>
-        </div>
 
-        <!-- Center Column: Map & Recent Dossiers -->
-        <div class="dashboard-workspace-col" style="flex: 1.5;">
-          <div id="dashboard-map-container" style="flex: 1.3; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--glass-border); position: relative;">
-            <!-- Crime Map will load here -->
+        </div>
+      </section>
+
+      <!-- SECTION 3: GEOSPATIAL MAP & RECENT DOSSIERS (Lazy Loaded) -->
+      <section id="dash-sec-map" class="dashboard-section lazy-section">
+        <div class="dashboard-row-two-col map-dossiers-row">
+          
+          <!-- Leaflet GIS Map Card -->
+          <div class="map-card-modern">
+            <div class="section-header">
+              <h3>🗺️ GIS Crime Mapping & Hotspots</h3>
+            </div>
+            <div id="dashboard-map-container" class="map-container-modern">
+              <div class="map-lazy-placeholder">
+                <span class="spinner-icon">📡</span> Loading GIS Crime Mapping Engine...
+              </div>
+            </div>
           </div>
           
-          <div class="chart-card dashboard-table-card">
-            <div class="chart-card-header" style="margin-bottom: 8px; flex-shrink: 0;">
-              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <!-- Recent Criminal Dossiers -->
+          <div class="recent-dossiers-card">
+            <div class="chart-card-header">
+              <div class="chart-card-header-flex">
                 <div class="chart-card-title">📁 Recent Dossiers</div>
-                <div style="display: flex; gap: 6px;">
+                <div class="header-buttons-gap">
                   ${currentUser.level === 1 ? `<button class="btn btn-primary btn-xs" onclick="openAddDossierModal()">➕ Add</button>` : ''}
                   <button class="btn btn-secondary btn-xs" onclick="navigateTo('dossiers')">View All</button>
                 </div>
               </div>
             </div>
-            <div class="table-scroll-container">
+            <div class="table-scroll-container-modern">
               ${renderDossierTable(dossiers.slice(0, 5))}
             </div>
           </div>
+
         </div>
+      </section>
 
-        <!-- Right Column: Charts & Pending Review -->
-        <div class="dashboard-workspace-col charts-side">
-          ${pendingDossiers.length > 0 && currentUser.level >= 2 ? `
-          <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; flex-shrink: 0;">
-            <span style="font-size:18px;">⚠️</span>
-            <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; color:#fbbf24; font-size:11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pending Review: ${pendingDossiers.length}</div>
-              <div style="font-size:9px; color:var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Awaiting verification</div>
+      <!-- SECTION 4: ANALYTICAL CHART WIDGETS (Lazy Loaded) -->
+      <section id="dash-sec-analytics" class="dashboard-section lazy-section">
+        <div class="section-header" style="margin-bottom: 20px;">
+          <h3>📊 Crime Analytics & Threat Pattern Forecast</h3>
+        </div>
+        
+        <div class="dashboard-row-three-col">
+          
+          <!-- Trend Chart -->
+          <div class="chart-card-modern">
+            <div class="chart-card-header">
+              <div class="chart-card-title">📈 Monthly Crime Trend</div>
             </div>
-            <button class="btn btn-xs" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);" onclick="navigateTo('dossiers')">Verify</button>
-          </div>` : ''}
-
-          <div class="chart-card">
-            <div class="chart-card-header" style="margin-bottom: 8px;">
-              <div>
-                <div class="chart-card-title">📈 Monthly Crime Trend</div>
-              </div>
+            <div class="chart-area-modern">
+              <canvas id="chart-trend" class="chart-canvas"></canvas>
             </div>
-            <div class="chart-area"><canvas id="chart-trend" class="chart-canvas"></canvas></div>
           </div>
           
-          <div class="chart-card">
-            <div class="chart-card-header" style="margin-bottom: 8px;">
-              <div>
-                <div class="chart-card-title">🎯 Criminal Categories</div>
-              </div>
+          <!-- Category Doughnut -->
+          <div class="chart-card-modern">
+            <div class="chart-card-header">
+              <div class="chart-card-title">🎯 Criminal Categories</div>
             </div>
-            <div class="chart-area"><canvas id="chart-category" class="chart-canvas"></canvas></div>
+            <div class="chart-area-modern">
+              <canvas id="chart-category" class="chart-canvas"></canvas>
+            </div>
           </div>
 
-          <div class="chart-card" style="height: 140px; flex: none;">
-            <div class="chart-card-header" style="margin-bottom: 8px;">
-              <div>
-                <div class="chart-card-title">📊 Gang Activity Analysis</div>
-              </div>
+          <!-- Gang Analysis -->
+          <div class="chart-card-modern">
+            <div class="chart-card-header">
+              <div class="chart-card-title">📊 Gang Activity Analysis</div>
             </div>
-            <div class="chart-area"><canvas id="chart-gangs" class="chart-canvas"></canvas></div>
+            <div class="chart-area-modern">
+              <canvas id="chart-gangs" class="chart-canvas"></canvas>
+            </div>
           </div>
+
         </div>
-
-      </div>
+      </section>
     </div>
   `;
 }
@@ -671,7 +700,24 @@ function _openModal(id, bodyHTML) {
 }
 window._openModal = _openModal;
 
-function initDashboardCharts() {
+function initDistrictBars() {
+  const stats = generateStatistics();
+  const distBar = document.getElementById('district-bars');
+  if (distBar) {
+    const maxCount = Math.max(...stats.districtComparison.map(d => d.count), 1);
+    distBar.innerHTML = stats.districtComparison.map(d => `
+      <div class="district-bar-item">
+        <div class="district-name">${d.name.split('(')[0].trim()}</div>
+        <div class="district-bar-wrap">
+          <div class="district-bar-fill" style="width:${Math.round(d.count / maxCount * 100)}%"></div>
+        </div>
+        <div class="district-count">${d.count}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function initDashboardChartsOnly() {
   const stats = generateStatistics();
 
   // Crime Trend Line Chart
@@ -740,21 +786,6 @@ function initDashboardCharts() {
     });
   }
 
-  // District Bars
-  const distBar = document.getElementById('district-bars');
-  if (distBar) {
-    const maxCount = Math.max(...stats.districtComparison.map(d => d.count), 1);
-    distBar.innerHTML = stats.districtComparison.map(d => `
-      <div class="district-bar-item">
-        <div class="district-name">${d.name.split('(')[0].trim()}</div>
-        <div class="district-bar-wrap">
-          <div class="district-bar-fill" style="width:${Math.round(d.count / maxCount * 100)}%"></div>
-        </div>
-        <div class="district-count">${d.count}</div>
-      </div>
-    `).join('');
-  }
-
   // Gang Analysis Bar
   const gangCtx = document.getElementById('chart-gangs');
   if (gangCtx) {
@@ -789,6 +820,64 @@ function initDashboardCharts() {
       }
     });
   }
+}
+
+function initDashboardLazyLoading() {
+  const sections = document.querySelectorAll('.lazy-section');
+  const scrollContainer = document.getElementById('page-content');
+
+  if (!window.IntersectionObserver) {
+    // Fallback: load everything immediately if IntersectionObserver is not supported
+    sections.forEach(s => s.classList.add('visible'));
+    initDistrictBars();
+    initCrimeMap('dashboard-map-container');
+    initDashboardChartsOnly();
+    return;
+  }
+
+  const observerOptions = {
+    root: scrollContainer,
+    rootMargin: '0px 0px 80px 0px', // Pre-trigger slightly before scroll entry
+    threshold: 0.05
+  };
+
+  const initialized = {
+    alerts: false,
+    map: false,
+    analytics: false
+  };
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        entry.target.classList.add('visible');
+
+        if (id === 'dash-sec-alerts' && !initialized.alerts) {
+          initialized.alerts = true;
+          // Clear standard placeholder and populate
+          const container = document.getElementById('district-bars');
+          if (container) container.innerHTML = '';
+          initDistrictBars();
+        } else if (id === 'dash-sec-map' && !initialized.map) {
+          initialized.map = true;
+          // Clear spinner placeholder
+          const mapCont = document.getElementById('dashboard-map-container');
+          if (mapCont) mapCont.innerHTML = '';
+          // Initialize map in container
+          initCrimeMap('dashboard-map-container');
+        } else if (id === 'dash-sec-analytics' && !initialized.analytics) {
+          initialized.analytics = true;
+          initDashboardChartsOnly();
+        }
+
+        // Unobserve since section is rendered
+        obs.unobserve(entry.target);
+      }
+    });
+  }, observerOptions);
+
+  sections.forEach(section => observer.observe(section));
 }
 
 // ══════════════════════════════════════════════════════════
