@@ -2097,7 +2097,7 @@ function renderUsersPage() {
         </table>
       </div>
     </div>
-    <div style="margin-top:20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px;">
+    <div style="margin-top:20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px;">
       <div class="chart-card" style="padding:16px;">
         <div style="font-size:13px; font-weight:700; margin-bottom:10px;">📊 Role Distribution</div>
         <div style="display:flex; flex-direction:column; gap:6px;">
@@ -2106,6 +2106,7 @@ function renderUsersPage() {
           <div class="district-bar-item"><div class="district-name" style="width:100px;">PHQ (L3)</div><div class="district-bar-wrap"><div class="district-bar-fill" style="width:20%;"></div></div><div class="district-count">1</div></div>
         </div>
       </div>
+      
       <div class="chart-card" style="padding:16px;">
         <div style="font-size:13px; font-weight:700; margin-bottom:10px;">🔐 Security Settings</div>
         ${[['Multi-Factor Auth','✅ Enabled'],['Aadhaar SSO','⏳ Setup Pending'],['End-to-End Encryption','✅ Active'],['Session Timeout','✅ 30 min'],['IP Whitelisting','⚠️ Not Set']].map(s=>`
@@ -2114,6 +2115,39 @@ function renderUsersPage() {
             <span style="color:${s[1].includes('✅')?'var(--green-400)':s[1].includes('⚠️')?'var(--amber-400)':'var(--text-muted)'};">${s[1]}</span>
           </div>
         `).join('')}
+      </div>
+
+      <div class="chart-card" style="padding:16px;">
+        <div style="font-size:13px; font-weight:700; margin-bottom:10px;">🛡️ Dynamic Credential Generator</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <label style="font-size:10px; color:var(--text-muted);">Officer Full Name / अधिकारी का नाम</label>
+            <input type="text" id="gen-officer-name" class="form-control-sm" placeholder="e.g. Rajiv Sharma" style="width:100%; font-size:11px;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <label style="font-size:10px; color:var(--text-muted);">Access Level / भूमिका चुनें</label>
+            <select id="gen-role-type" class="form-control-sm" style="width:100%; font-size:11px;">
+              <option value="police_station">Level 1 — Police Station (SHO/IO)</option>
+              <option value="sp_nodal">Level 2 — District Nodal (CO/SP)</option>
+              <option value="phq_level">Level 3 — PHQ State Admin</option>
+            </select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <label style="font-size:10px; color:var(--text-muted);">District / जनपद</label>
+            <select id="gen-district" class="form-control-sm" style="width:100%; font-size:11px;">
+              <option value="lucknow">Lucknow</option>
+              <option value="varanasi">Varanasi</option>
+              <option value="prayagraj">Prayagraj</option>
+              <option value="noida">Gautam Buddha Nagar</option>
+            </select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <label style="font-size:10px; color:var(--text-muted);">Posting Station / कार्यालय</label>
+            <input type="text" id="gen-station" class="form-control-sm" placeholder="e.g. Hazratganj PS" style="width:100%; font-size:11px;" />
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="generateOfficerCredentials()" style="margin-top:4px; font-weight:700;">🎫 Generate Secure ID</button>
+          <div id="gen-credentials-result" style="display:none;"></div>
+        </div>
       </div>
     </div>
   `;
@@ -2706,14 +2740,46 @@ window.openEditStatusInVillage = function(id) {
 // ══════════════════════════════════════════════════════════
 async function doLogin() {
   const role = document.getElementById('login-role').value;
-  const username = document.getElementById('login-username').value;
+  const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
 
   if (!username || !password) {
     showToast('❌ Please enter credentials', 'error'); return;
   }
 
-  currentUser = { ...USERS[role], username };
+  showToast('🔐 Verifying credentials against database...', 'info');
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.user) {
+        currentUser = data.user;
+        showToast(`✅ Authentication successful. Welcome, ${currentUser.name}!`, 'success');
+      }
+    } else {
+      const errData = await res.json();
+      showToast(`❌ Login failed: ${errData.message || 'Invalid credentials'}`, 'error');
+      return;
+    }
+  } catch (err) {
+    console.warn("⚠️ Server connection failed. Using offline local mock fallback for login.", err);
+    // Fallback to local mock data
+    currentUser = { ...USERS[role], username };
+    showToast(`⚠️ Offline Mode: Logged in locally as ${currentUser.role}`, 'warning');
+  }
+
+  // Once authenticated, sync data cache from Supabase
+  if (window.syncWithBackend) {
+    await window.syncWithBackend(currentUser);
+  }
+
+  addAuditLog(currentUser.username, currentUser.role, 'Login', `User logged in as ${currentUser.role}`);
 
   // Show the app shell immediately while data loads
   document.getElementById('login-screen').style.display = 'none';
@@ -2737,6 +2803,79 @@ function quickLogin(role) {
   document.getElementById('login-username').value = u.username;
   document.getElementById('login-password').value = 'up@1234';
   doLogin();
+}
+
+// dynamic credential generator for Police Station, SP Nodal and PHQ
+async function generateOfficerCredentials() {
+  const name = document.getElementById('gen-officer-name').value.trim();
+  const roleType = document.getElementById('gen-role-type').value;
+  const district = document.getElementById('gen-district').value;
+  const station = document.getElementById('gen-station').value.trim();
+
+  if (!name) {
+    showToast('❌ Officer Name is required!', 'error');
+    return;
+  }
+
+  showToast('🔐 Generating dynamic credentials inside database...', 'info');
+
+  try {
+    const res = await fetch('/api/users/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        roleType,
+        district,
+        station,
+        adminUser: currentUser.username,
+        adminRole: currentUser.role
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.credentials) {
+        showToast('✅ Credential generated successfully!', 'success');
+        const creds = data.credentials;
+        const resultDiv = document.getElementById('gen-credentials-result');
+        resultDiv.style.display = 'block';
+        resultDiv.style.cssText = `
+          margin-top: 10px;
+          padding: 10px;
+          border-radius: 6px;
+          border: 1px solid var(--gold-500);
+          background: rgba(238,185,2,0.06);
+          font-size: 11px;
+          line-height: 1.4;
+          text-align: left;
+        `;
+        resultDiv.innerHTML = `
+          <div style="font-weight:700; color:var(--gold-400); margin-bottom:4px;">🎫 GENERATED IDENTITY:</div>
+          <div>👤 <strong>Name:</strong> ${creds.name}</div>
+          <div>👮 <strong>Role:</strong> ${creds.role}</div>
+          <div>📍 <strong>Office:</strong> ${creds.station} (${creds.district})</div>
+          <div style="margin-top:6px; border-top:1px dashed rgba(255,255,255,0.1); padding-top:6px;">
+            🔑 <strong style="color:var(--green-400);">Username:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${creds.username}</code><br/>
+            🔒 <strong style="color:var(--green-400);">Password:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${creds.password}</code>
+          </div>
+          <div style="font-size:9px; color:var(--text-muted); margin-top:6px;">
+            ⚠️ Synced to Supabase database. Account is ready for custom login.
+          </div>
+        `;
+        
+        // Clear input fields
+        document.getElementById('gen-officer-name').value = '';
+        document.getElementById('gen-station').value = '';
+      }
+    } else {
+      const err = await res.json();
+      showToast(`❌ Generation failed: ${err.message}`, 'error');
+    }
+  } catch (err) {
+    console.error('Error generating credentials:', err);
+    showToast('❌ Error generating credentials from server.', 'error');
+  }
 }
 
 function doLogout() {

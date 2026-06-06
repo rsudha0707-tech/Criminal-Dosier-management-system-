@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="hi" data-lang="hi">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Criminal Dossier & Intelligence Management System — Uttar Pradesh Police Headquarters. Centralized portal for criminal records, gang profiles, surveillance and intelligence." />
+  <meta name="description"
+    content="Criminal Dossier & Intelligence Management System — Uttar Pradesh Police Headquarters. Centralized portal for criminal records, gang profiles, surveillance and intelligence." />
   <title>CDIMS — Criminal Dossier & Intelligence Management System | UP Police</title>
   <link rel="stylesheet" href="style.css" />
   <!-- Leaflet CSS -->
@@ -19,318 +21,330 @@
   <!-- Backend: Supabase data layer (replaces dossiers.js) -->
   <script src="backend.js"></script>
 </head>
+
 <body>
 
-<!-- ═══════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════
      LOGIN SCREEN
 ═══════════════════════════════════════════════ -->
-<div id="login-screen">
-  <div class="login-bg-grid"></div>
-  <div class="login-card">
-    <div class="login-logo">
-      <div class="emblem-wrapper">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png" alt="Uttar Pradesh Police Logo" class="up-police-logo-img" />
+  <div id="login-screen">
+    <div class="login-bg-grid"></div>
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="emblem-wrapper">
+          <img
+            src="data:image/jpeg;base64,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"
+            alt="Uttar Pradesh Police Logo" class="up-police-logo-img" />
+        </div>
+        <h1>CDIMS</h1>
+        <p>Criminal Dossier &amp; Intelligence Management System</p>
+        <div class="login-slogan">सुरक्षा आपकी, संकल्प हमारा</div>
       </div>
-      <h1>CDIMS</h1>
-      <p>Criminal Dossier &amp; Intelligence Management System</p>
-      <div class="login-slogan">सुरक्षा आपकी, संकल्प हमारा</div>
-    </div>
-    <div class="login-dept">
+      <div class="login-dept">
 
-      🏛️ Uttar Pradesh Police Headquarters | उत्तर प्रदेश पुलिस मुख्यालय
-    </div>
-
-    <div class="form-group">
-      <label>Username / यूज़रनेम</label>
-      <input type="text" id="login-username" class="form-control" placeholder="Enter your credentials" value="sho_hazratganj" />
-    </div>
-    <div class="form-group">
-      <label>Password / पासवर्ड</label>
-      <input type="password" id="login-password" class="form-control" placeholder="••••••••" value="up@1234" />
-    </div>
-    <div class="form-group">
-      <label>Login As / भूमिका चुनें (Demo)</label>
-      <select id="login-role" class="form-control">
-        <option value="l1">Level 1 — Police Station User (SHO/IO/DEO)</option>
-        <option value="l2">Level 2 — District Nodal Officer (CO/SP Office)</option>
-        <option value="l3">Level 3 — State Administrator (PHQ)</option>
-      </select>
-    </div>
-    <button class="btn-login" id="btn-login" onclick="doLogin()">🔐 Secure Login / सुरक्षित लॉगिन</button>
-
-    <div class="login-role-badges" style="margin-top:20px;">
-      <div class="role-badge" onclick="quickLogin('l1')">
-        <span class="role-icon">👮</span>
-        <div class="role-name">Station User</div>
-        <div class="role-level">Level 1</div>
+        🏛️ Uttar Pradesh Police Headquarters | उत्तर प्रदेश पुलिस मुख्यालय
       </div>
-      <div class="role-badge" onclick="quickLogin('l2')">
-        <span class="role-icon">🏅</span>
-        <div class="role-name">District Nodal</div>
-        <div class="role-level">Level 2</div>
+
+      <div class="form-group">
+        <label>Username / यूज़रनेम</label>
+        <input type="text" id="login-username" class="form-control" placeholder="Enter your credentials"
+          value="sho_hazratganj" />
       </div>
-      <div class="role-badge" onclick="quickLogin('l3')">
-        <span class="role-icon">⭐</span>
-        <div class="role-name">PHQ Admin</div>
-        <div class="role-level">Level 3</div>
+      <div class="form-group">
+        <label>Password / पासवर्ड</label>
+        <input type="password" id="login-password" class="form-control" placeholder="••••••••" value="up@1234" />
+      </div>
+      <div class="form-group">
+        <label>Login As / भूमिका चुनें (Demo)</label>
+        <select id="login-role" class="form-control">
+          <option value="l1">Level 1 — Police Station User (SHO/IO/DEO)</option>
+          <option value="l2">Level 2 — District Nodal Officer (CO/SP Office)</option>
+          <option value="l3">Level 3 — State Administrator (PHQ)</option>
+        </select>
+      </div>
+      <button class="btn-login" id="btn-login" onclick="doLogin()">🔐 Secure Login / सुरक्षित लॉगिन</button>
+
+      <div class="login-role-badges" style="margin-top:20px;">
+        <div class="role-badge" onclick="quickLogin('l1')">
+          <span class="role-icon">👮</span>
+          <div class="role-name">Station User</div>
+          <div class="role-level">Level 1</div>
+        </div>
+        <div class="role-badge" onclick="quickLogin('l2')">
+          <span class="role-icon">🏅</span>
+          <div class="role-name">District Nodal</div>
+          <div class="role-level">Level 2</div>
+        </div>
+        <div class="role-badge" onclick="quickLogin('l3')">
+          <span class="role-icon">⭐</span>
+          <div class="role-name">PHQ Admin</div>
+          <div class="role-level">Level 3</div>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- ═══════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════
      MAIN APPLICATION
 ═══════════════════════════════════════════════ -->
-<div id="app">
+  <div id="app">
 
-  <!-- SIDEBAR -->
-  <nav class="sidebar" id="sidebar">
-    <div class="sidebar-logo">
-      <div class="logo-badge">
-        <div class="logo-icon-wrapper">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png" alt="UP Police Logo" class="up-police-logo-img-small" />
-        </div>
-        <div class="logo-text">
-          <h2>UP CDIMS</h2>
-          <p>सुरक्षा आपकी, संकल्प हमारा</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="sidebar-user" id="sidebar-user">
-      <div class="user-avatar" id="user-avatar">SH</div>
-      <div class="user-info">
-        <div class="user-name" id="user-name-display">SHO Hazratganj</div>
-        <div class="user-role" id="user-role-display">Police Station User</div>
-        <div class="user-station" id="user-station-display">Hazratganj PS, Lucknow</div>
-      </div>
-    </div>
-
-    <div class="sidebar-nav" id="sidebar-nav">
-      <!-- Populated by JS based on role -->
-    </div>
-
-    <div class="sidebar-footer">
-      <button class="btn-logout" onclick="doLogout()">
-        🚪 <span data-i18n="logout">Logout / लॉगआउट</span>
-      </button>
-    </div>
-  </nav>
-
-  <!-- MAIN WRAPPER -->
-  <div class="main-wrapper">
-
-    <!-- HEADER -->
-    <header class="header" id="main-header">
-      <div class="header-branding-logos">
-        <div class="logo-wrapper">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png" alt="UP Police Logo" class="up-police-logo-img-small" />
-        </div>
-        <div class="logo-wrapper">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Seal_of_Uttar_Pradesh.svg" alt="UP Govt Logo" class="up-govt-logo-img-small" />
+    <!-- SIDEBAR -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-badge">
+          <div class="logo-icon-wrapper">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png"
+              alt="UP Police Logo" class="up-police-logo-img-small" />
+          </div>
+          <div class="logo-text">
+            <h2>UP CDIMS</h2>
+            <p>सुरक्षा आपकी, संकल्प हमारा</p>
+          </div>
         </div>
       </div>
-      
-      <div class="header-title-centered">
-        <h2 id="page-title">Dashboard</h2>
-        <p id="page-subtitle">Uttar Pradesh Police — Criminal Dossier & Intelligence Management System</p>
-      </div>
-      <div class="header-actions">
-        <div class="lang-toggle">
-          <button class="lang-btn active" id="btn-lang-en" onclick="setLang('en')">EN</button>
-          <button class="lang-btn" id="btn-lang-hi" onclick="setLang('hi')">हिं</button>
+
+      <div class="sidebar-user" id="sidebar-user">
+        <div class="user-avatar" id="user-avatar">SH</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name-display">SHO Hazratganj</div>
+          <div class="user-role" id="user-role-display">Police Station User</div>
+          <div class="user-station" id="user-station-display">Hazratganj PS, Lucknow</div>
         </div>
-        <div class="header-icon-btn" onclick="toggleNotifPanel()" title="Alerts">
-          🔔
-          <span class="notif-dot"></span>
+      </div>
+
+      <div class="sidebar-nav" id="sidebar-nav">
+        <!-- Populated by JS based on role -->
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-logout" onclick="doLogout()">
+          🚪 <span data-i18n="logout">Logout / लॉगआउट</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN WRAPPER -->
+    <div class="main-wrapper">
+
+      <!-- HEADER -->
+      <header class="header" id="main-header">
+        <div class="header-branding">
+          <div class="header-emblem-wrapper">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png"
+              alt="UP Police Logo" class="up-police-logo-img-small" />
+          </div>
+          <div class="header-title">
+            <h2 id="page-title">Dashboard</h2>
+            <p id="page-subtitle">Uttar Pradesh Police — Criminal Dossier & Intelligence Management System</p>
+          </div>
         </div>
-        <div class="header-icon-btn" onclick="navigateTo('audit')" title="Audit Logs">📋</div>
-        <div class="header-icon-btn" onclick="navigateTo('reports')" title="Reports">📊</div>
+        <div class="header-actions">
+          <div class="lang-toggle">
+            <button class="lang-btn active" id="btn-lang-en" onclick="setLang('en')">EN</button>
+            <button class="lang-btn" id="btn-lang-hi" onclick="setLang('hi')">हिं</button>
+          </div>
+          <div class="header-icon-btn" onclick="toggleNotifPanel()" title="Alerts">
+            🔔
+            <span class="notif-dot"></span>
+          </div>
+          <div class="header-icon-btn" onclick="navigateTo('audit')" title="Audit Logs">📋</div>
+          <div class="header-icon-btn" onclick="navigateTo('reports')" title="Reports">📊</div>
+        </div>
+      </header>
+
+      <!-- NOTIFICATION PANEL -->
+      <div class="notif-panel" id="notif-panel">
+        <div class="notif-panel-header">
+          <h4>🔔 Live Alerts</h4>
+          <button class="btn btn-xs btn-secondary" onclick="toggleNotifPanel()">✕</button>
+        </div>
+        <div class="notif-list" id="notif-list"></div>
       </div>
-    </header>
 
-    <!-- NOTIFICATION PANEL -->
-    <div class="notif-panel" id="notif-panel">
-      <div class="notif-panel-header">
-        <h4>🔔 Live Alerts</h4>
-        <button class="btn btn-xs btn-secondary" onclick="toggleNotifPanel()">✕</button>
+      <!-- TICKER BAR -->
+      <div class="ticker-bar">
+        <span class="ticker-label">⚡ LIVE</span>
+        <span class="ticker-text" id="ticker-text">
+          🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp;
+          ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp;
+          🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
+          📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area &nbsp;|&nbsp;
+          🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp;
+          ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp;
+          🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
+          📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area
+        </span>
       </div>
-      <div class="notif-list" id="notif-list"></div>
-    </div>
 
-    <!-- TICKER BAR -->
-    <div class="ticker-bar">
-      <span class="ticker-label">⚡ LIVE</span>
-      <span class="ticker-text" id="ticker-text">
-        🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp; 
-        ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp; 
-        🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
-        📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area &nbsp;|&nbsp;
-        🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp; 
-        ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp; 
-        🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
-        📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area
-      </span>
-    </div>
-
-    <!-- PAGE CONTENT AREA -->
-    <div class="page-content" id="page-content">
-      <!-- Dynamic content loaded here by JS -->
+      <!-- PAGE CONTENT AREA -->
+      <div class="page-content" id="page-content">
+        <!-- Dynamic content loaded here by JS -->
+      </div>
     </div>
   </div>
-</div>
 
-<!-- ═══════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════
      DOSSIER DETAIL MODAL
 ═══════════════════════════════════════════════ -->
-<div class="modal-overlay" id="dossier-modal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>📁 <span id="modal-criminal-name">Criminal Dossier</span></h3>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-sm btn-secondary" onclick="printDossier()">🖨️ Print</button>
-        <button class="modal-close" onclick="closeDossierModal()">✕</button>
+  <div class="modal-overlay" id="dossier-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>📁 <span id="modal-criminal-name">Criminal Dossier</span></h3>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-sm btn-secondary" onclick="printDossier()">🖨️ Print</button>
+          <button class="modal-close" onclick="closeDossierModal()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Dynamic content -->
       </div>
     </div>
-    <div class="modal-body" id="modal-body">
-      <!-- Dynamic content -->
-    </div>
   </div>
-</div>
 
-<!-- ═══════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════
      ADD DOSSIER MODAL
 ═══════════════════════════════════════════════ -->
-<div class="modal-overlay" id="add-dossier-modal">
-  <div class="modal" style="max-width:700px;">
-    <div class="modal-header">
-      <h3>➕ New Criminal Dossier / नया अपराधी डोजियर</h3>
-      <button class="modal-close" onclick="closeAddDossierModal()">✕</button>
-    </div>
-    <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
-      <div class="form-section-title">👤 Personal Information / व्यक्तिगत जानकारी</div>
-      <div class="form-grid">
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Full Name / पूर्ण नाम *</label>
-          <input id="f-name" class="form-control-sm" type="text" placeholder="e.g. Ramesh Kumar" />
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Alias Name / उपनाम</label>
-          <input id="f-alias" class="form-control-sm" type="text" placeholder="Known as..." />
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Father's Name / पिता का नाम</label>
-          <input id="f-father" class="form-control-sm" type="text" placeholder="Father's full name" />
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Date of Birth</label>
-          <input id="f-dob" class="form-control-sm" type="date" />
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gender</label>
-          <select id="f-gender" class="form-control-sm">
-            <option>Male</option><option>Female</option><option>Other</option>
-          </select>
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Mobile Number</label>
-          <input id="f-mobile" class="form-control-sm" type="text" placeholder="10-digit number" />
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Aadhaar (Last 4 digits)</label>
-          <input id="f-aadhaar" class="form-control-sm" type="text" placeholder="XXXX-XXXX-XXXX" />
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Blood Group</label>
-          <select id="f-blood" class="form-control-sm">
-            <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
-            <option>O+</option><option>O-</option><option>AB+</option><option>AB-</option>
-          </select>
-        </div>
+  <div class="modal-overlay" id="add-dossier-modal">
+    <div class="modal" style="max-width:700px;">
+      <div class="modal-header">
+        <h3>➕ New Criminal Dossier / नया अपराधी डोजियर</h3>
+        <button class="modal-close" onclick="closeAddDossierModal()">✕</button>
       </div>
-      <div class="form-group-row" style="margin-top:8px;">
-        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Address / वर्तमान पता</label>
-        <textarea id="f-address" class="form-control-sm" placeholder="Full address..."></textarea>
-      </div>
+      <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
+        <div class="form-section-title">👤 Personal Information / व्यक्तिगत जानकारी</div>
+        <div class="form-grid">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Full Name / पूर्ण नाम *</label>
+            <input id="f-name" class="form-control-sm" type="text" placeholder="e.g. Ramesh Kumar" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Alias Name / उपनाम</label>
+            <input id="f-alias" class="form-control-sm" type="text" placeholder="Known as..." />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Father's Name / पिता का
+              नाम</label>
+            <input id="f-father" class="form-control-sm" type="text" placeholder="Father's full name" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Date of Birth</label>
+            <input id="f-dob" class="form-control-sm" type="date" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gender</label>
+            <select id="f-gender" class="form-control-sm">
+              <option>Male</option>
+              <option>Female</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Mobile Number</label>
+            <input id="f-mobile" class="form-control-sm" type="text" placeholder="10-digit number" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Aadhaar (Last 4 digits)</label>
+            <input id="f-aadhaar" class="form-control-sm" type="text" placeholder="XXXX-XXXX-XXXX" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Blood Group</label>
+            <select id="f-blood" class="form-control-sm">
+              <option>A+</option>
+              <option>A-</option>
+              <option>B+</option>
+              <option>B-</option>
+              <option>O+</option>
+              <option>O-</option>
+              <option>AB+</option>
+              <option>AB-</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group-row" style="margin-top:8px;">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Address / वर्तमान
+            पता</label>
+          <textarea id="f-address" class="form-control-sm" placeholder="Full address..."></textarea>
+        </div>
 
-      <div class="form-section-title" style="margin-top:16px;">⚖️ Criminal History</div>
-      <div class="form-grid">
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">FIR Number</label>
-          <input id="f-fir" class="form-control-sm" placeholder="FIR-XXX/YYYY" />
+        <div class="form-section-title" style="margin-top:16px;">⚖️ Criminal History</div>
+        <div class="form-grid">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">FIR Number</label>
+            <input id="f-fir" class="form-control-sm" placeholder="FIR-XXX/YYYY" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
+            <input id="f-ps" class="form-control-sm" placeholder="Police Station name" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">District</label>
+            <select id="f-district" class="form-control-sm">
+              <option value="lucknow">Lucknow</option>
+              <option value="varanasi">Varanasi</option>
+              <option value="prayagraj">Prayagraj</option>
+              <option value="noida">Gautam Buddha Nagar</option>
+            </select>
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Status</label>
+            <select id="f-status" class="form-control-sm">
+              <option>Wanted</option>
+              <option>Active</option>
+              <option>In Jail</option>
+              <option>Out on Bail</option>
+            </select>
+          </div>
         </div>
         <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">District</label>
-          <select id="f-district" class="form-control-sm" onchange="onModalDistrictChange()">
-            <option value="lucknow">Lucknow</option>
-            <option value="varanasi">Varanasi</option>
-            <option value="prayagraj">Prayagraj</option>
-            <option value="noida">Gautam Buddha Nagar</option>
-          </select>
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Sections of Law</label>
+          <input id="f-sections" class="form-control-sm" placeholder="e.g. IPC 302, Arms Act Sec 25" />
         </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
-          <select id="f-ps" class="form-control-sm" onchange="onModalStationChange()"></select>
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Village / ग्राम *</label>
-          <select id="f-village" class="form-control-sm"></select>
-        </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Status</label>
-          <select id="f-status" class="form-control-sm">
-            <option>Wanted</option><option>Active</option>
-            <option>In Jail</option><option>Out on Bail</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group-row">
-        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Sections of Law</label>
-        <input id="f-sections" class="form-control-sm" placeholder="e.g. IPC 302, Arms Act Sec 25" />
-      </div>
 
-      <div class="form-section-title" style="margin-top:16px;">🕵️ Surveillance</div>
-      <div class="form-grid">
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">History Sheet Number</label>
-          <input id="f-hs" class="form-control-sm" placeholder="HS-XXX/Station" />
+        <div class="form-section-title" style="margin-top:16px;">🕵️ Surveillance</div>
+        <div class="form-grid">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">History Sheet Number</label>
+            <input id="f-hs" class="form-control-sm" placeholder="HS-XXX/Station" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Surveillance Category</label>
+            <select id="f-scat" class="form-control-sm">
+              <option>Category A (Hardened Gangster)</option>
+              <option>Category B (Active Criminal)</option>
+              <option>Category C (Petty Associate)</option>
+            </select>
+          </div>
         </div>
         <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Surveillance Category</label>
-          <select id="f-scat" class="form-control-sm">
-            <option>Category A (Hardened Gangster)</option>
-            <option>Category B (Active Criminal)</option>
-            <option>Category C (Petty Associate)</option>
-          </select>
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Intelligence Notes</label>
+          <textarea id="f-intel" class="form-control-sm"
+            placeholder="Intelligence inputs and surveillance notes..."></textarea>
         </div>
-      </div>
-      <div class="form-group-row">
-        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Intelligence Notes</label>
-        <textarea id="f-intel" class="form-control-sm" placeholder="Intelligence inputs and surveillance notes..."></textarea>
-      </div>
 
-      <div class="form-section-title" style="margin-top:16px;">👥 Gang Information</div>
-      <div class="form-grid">
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gang Name</label>
-          <input id="f-gang" class="form-control-sm" placeholder="Gang name or Independent" />
+        <div class="form-section-title" style="margin-top:16px;">👥 Gang Information</div>
+        <div class="form-grid">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gang Name</label>
+            <input id="f-gang" class="form-control-sm" placeholder="Gang name or Independent" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gang Leader</label>
+            <input id="f-leader" class="form-control-sm" placeholder="Gang leader's name" />
+          </div>
         </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Gang Leader</label>
-          <input id="f-leader" class="form-control-sm" placeholder="Gang leader's name" />
-        </div>
-      </div>
 
-      <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="closeAddDossierModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitNewDossier()">💾 Save Dossier</button>
+        <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="closeAddDossierModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="submitNewDossier()">💾 Save Dossier</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<script src="network.js"></script>
-<script src="map.js"></script>
-<script src="app.js"></script>
+  <script src="network.js"></script>
+  <script src="map.js"></script>
+  <script src="app.js"></script>
 </body>
+
 </html>

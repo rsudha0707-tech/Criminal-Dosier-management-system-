@@ -535,6 +535,44 @@ const INITIAL_DOSSIERS = [
 // ── Schema versioning: bump this when seed data shape changes ──
 const CDIMS_DB_VERSION = "v2-village";
 
+// In-memory cache variables for synchronizing with backend APIs
+let dossiersCache = null;
+let auditLogsCache = null;
+
+// Asynchronous synchronization with backend Supabase APIs
+async function syncWithBackend(user) {
+  if (!user) return false;
+  console.log("🔄 Synchronizing local state with backend Supabase database...");
+  try {
+    // 1. Fetch customized dossiers based on user level/district content permissions
+    const dossiersUrl = `/api/dossiers?district=${user.district || 'all'}&level=${user.level || 3}`;
+    const dossiersRes = await fetch(dossiersUrl);
+    if (dossiersRes.ok) {
+      const dossiersData = await dossiersRes.json();
+      if (dossiersData.success && dossiersData.dossiers) {
+        dossiersCache = dossiersData.dossiers;
+        localStorage.setItem("cdims_dossiers", JSON.stringify(dossiersCache));
+        console.log(`✅ Dossiers cache synchronized. Count: ${dossiersCache.length}`);
+      }
+    }
+
+    // 2. Fetch system audit trail logs
+    const logsRes = await fetch('/api/audit-logs');
+    if (logsRes.ok) {
+      const logsData = await logsRes.json();
+      if (logsData.success && logsData.logs) {
+        auditLogsCache = logsData.logs;
+        localStorage.setItem("cdims_audit_logs", JSON.stringify(auditLogsCache));
+        console.log(`✅ Audit trail cache synchronized. Count: ${auditLogsCache.length}`);
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn("⚠️ Backend connection timed out or unreachable. Operating in offline/fallback mode.", err);
+    return false;
+  }
+}
+
 // Initialize database in localStorage
 function initDatabase() {
   // If the stored schema version doesn't match, wipe and re-seed
@@ -557,63 +595,123 @@ function initDatabase() {
     ];
     localStorage.setItem("cdims_audit_logs", JSON.stringify(initialLogs));
   }
+  
+  // Load into memory cache if not already populated
+  if (!dossiersCache) {
+    dossiersCache = JSON.parse(localStorage.getItem("cdims_dossiers")) || [];
+  }
+  if (!auditLogsCache) {
+    auditLogsCache = JSON.parse(localStorage.getItem("cdims_audit_logs")) || [];
+  }
 }
 
-// Retrieve all dossiers
+// Retrieve all dossiers from the synchronized cache
 function getDossiers() {
   initDatabase();
-  return JSON.parse(localStorage.getItem("cdims_dossiers"));
+  return dossiersCache || [];
 }
 
-// Save all dossiers
+// Save all dossiers locally and write-back
 function saveDossiers(dossiers) {
+  dossiersCache = dossiers;
   localStorage.setItem("cdims_dossiers", JSON.stringify(dossiers));
 }
 
-// Add a new dossier
+// Add a new dossier (Synchronous local state update + Asynchronous backend Supabase push)
 function addDossier(dossier, user) {
-  const dossiers = getDossiers();
+  initDatabase();
   
-  // Auto generate ID
-  const nextNum = dossiers.length + 1;
+  // Auto generate temporary local ID
+  const nextNum = dossiersCache.length + 1;
   const idStr = String(nextNum).padStart(4, "0");
   dossier.id = `CRM-2026-${idStr}`;
   dossier.approvalStatus = "Pending Verification"; // New entries always start pending
   dossier.submittedBy = user.name || "SHO User";
   dossier.lastUpdated = new Date().toISOString();
   
-  dossiers.push(dossier);
-  saveDossiers(dossiers);
+  dossiersCache.push(dossier);
+  saveDossiers(dossiersCache);
   
   addAuditLog(user.username, user.role, "Create Dossier", `Created dossier ${dossier.id} (${dossier.personalInfo.name})`);
+
+  // Asynchronous backend push
+  fetch('/api/dossiers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dossier, username: user.username, role: user.role })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success && data.dossier) {
+      console.log(`✅ Dossier successfully written to Supabase with final ID: ${data.dossier.id}`);
+      // Update in-memory ID and status if returned differently by backend
+      const idx = dossiersCache.findIndex(d => d.personalInfo.name === dossier.personalInfo.name && d.personalInfo.dob === dossier.personalInfo.dob);
+      if (idx !== -1) {
+        dossiersCache[idx] = data.dossier;
+        saveDossiers(dossiersCache);
+      }
+    }
+  })
+  .catch(err => console.warn("⚠️ Could not write new dossier to database. Running in fallback offline state.", err));
+
   return dossier;
 }
 
-// Update an existing dossier
+// Update an existing dossier (Synchronous local state update + Asynchronous backend Supabase update)
 function updateDossier(dossier, user) {
-  const dossiers = getDossiers();
-  const index = dossiers.findIndex(d => d.id === dossier.id);
+  initDatabase();
+  const index = dossiersCache.findIndex(d => d.id === dossier.id);
   if (index !== -1) {
     dossier.lastUpdated = new Date().toISOString();
-    dossiers[index] = dossier;
-    saveDossiers(dossiers);
+    dossiersCache[index] = dossier;
+    saveDossiers(dossiersCache);
     addAuditLog(user.username, user.role, "Update Dossier", `Updated dossier ${dossier.id} (${dossier.personalInfo.name})`);
+
+    // Asynchronous backend update
+    fetch(`/api/dossiers/${dossier.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dossier, username: user.username, role: user.role })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log(`✅ Dossier ${dossier.id} successfully updated in Supabase.`);
+      }
+    })
+    .catch(err => console.warn("⚠️ Failed to update database. Operating in fallback offline state.", err));
+
     return true;
   }
   return false;
 }
 
-// Approve dossier (District Nodal function)
+// Approve dossier (District Nodal L2 / PHQ Admin L3 function)
 function approveDossier(id, user) {
-  const dossiers = getDossiers();
-  const index = dossiers.findIndex(d => d.id === id);
+  initDatabase();
+  const index = dossiersCache.findIndex(d => d.id === id);
   if (index !== -1) {
-    dossiers[index].approvalStatus = "Approved";
-    dossiers[index].verifiedBy = user.name || "CO Authorized";
-    dossiers[index].approvedBy = user.name || "SP Authorized";
-    dossiers[index].lastUpdated = new Date().toISOString();
-    saveDossiers(dossiers);
+    const d = dossiersCache[index];
+    d.approvalStatus = "Approved";
+    d.verifiedBy = user.name || "CO Authorized";
+    d.approvedBy = user.name || "SP Authorized";
+    d.lastUpdated = new Date().toISOString();
+    
+    saveDossiers(dossiersCache);
     addAuditLog(user.username, user.role, "Approve Dossier", `Approved dossier ${id}`);
+
+    // Asynchronous backend status update
+    fetch(`/api/dossiers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dossier: d, username: user.username, role: user.role })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) console.log(`✅ Dossier ${id} approved and saved in Supabase.`);
+    })
+    .catch(err => console.warn("⚠️ Failed to update database status. Saved in local fallback state.", err));
+
     return true;
   }
   return false;
@@ -621,37 +719,64 @@ function approveDossier(id, user) {
 
 // Return dossier for correction (District Nodal function)
 function returnDossierForCorrection(id, remarks, user) {
-  const dossiers = getDossiers();
-  const index = dossiers.findIndex(d => d.id === id);
+  initDatabase();
+  const index = dossiersCache.findIndex(d => d.id === id);
   if (index !== -1) {
-    dossiers[index].approvalStatus = "Returned for Correction";
-    dossiers[index].surveillance.intelligenceInputs = `Correction needed: ${remarks}`;
-    dossiers[index].lastUpdated = new Date().toISOString();
-    saveDossiers(dossiers);
+    const d = dossiersCache[index];
+    d.approvalStatus = "Returned for Correction";
+    d.surveillance.intelligenceInputs = `Correction needed: ${remarks}`;
+    d.lastUpdated = new Date().toISOString();
+    
+    saveDossiers(dossiersCache);
     addAuditLog(user.username, user.role, "Return Dossier", `Returned dossier ${id} for correction. Remarks: ${remarks}`);
+
+    // Asynchronous backend status update
+    fetch(`/api/dossiers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dossier: d, username: user.username, role: user.role })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) console.log(`✅ Dossier ${id} returned in Supabase database.`);
+    })
+    .catch(err => console.warn("⚠️ Failed to update database status. Saved in local fallback state.", err));
+
     return true;
   }
   return false;
 }
 
-// Audit Logs
+// Retrieve audit trail logs
 function getAuditLogs() {
   initDatabase();
-  return JSON.parse(localStorage.getItem("cdims_audit_logs")) || [];
+  return auditLogsCache || [];
 }
 
+// Add system audit log
 function addAuditLog(username, role, action, details) {
-  const logs = getAuditLogs();
-  logs.unshift({
+  initDatabase();
+  
+  const logItem = {
     timestamp: new Date().toISOString(),
     username,
     role,
     action,
     details
-  });
-  // Cap logs at 100 entries
-  if (logs.length > 100) logs.pop();
-  localStorage.setItem("cdims_audit_logs", JSON.stringify(logs));
+  };
+  
+  auditLogsCache.unshift(logItem);
+  if (auditLogsCache.length > 100) auditLogsCache.pop();
+  localStorage.setItem("cdims_audit_logs", JSON.stringify(auditLogsCache));
+
+  // Sync to database
+  fetch('/api/audit-logs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(logItem)
+  })
+  .then(res => res.json())
+  .catch(err => console.warn("⚠️ Log sync deferred, operating in fallback state."));
 }
 
 // Advanced search logic
@@ -817,3 +942,4 @@ window.addAuditLog = addAuditLog;
 window.calculateRiskScore = calculateRiskScore;
 window.runCrimePatternAnalysis = runCrimePatternAnalysis;
 window.generateStatistics = generateStatistics;
+window.syncWithBackend = syncWithBackend;
