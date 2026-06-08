@@ -785,7 +785,21 @@ function _csvRowToDossier(row) {
       address: row.address || '',
       permanentAddress: row.permanentAddress || '',
       photograph: row.photograph || '',
-      village: row.village || ''
+      village: (() => {
+        let v = row.village || '';
+        if (v === 'Dehat' || v === '') {
+          const mainHistory = history && history[0] ? history[0] : {};
+          const ps = mainHistory.policeStation || 'Hazratganj';
+          if (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[ps] && window.VILLAGES_BY_STATION[ps].length > 0) {
+            const vList = window.VILLAGES_BY_STATION[ps];
+            let idHash = 0;
+            const idStr = row.id || '';
+            for (let i = 0; i < idStr.length; i++) idHash += idStr.charCodeAt(i);
+            v = vList[idHash % vList.length];
+          }
+        }
+        return v;
+      })()
     },
     biometrics: {
       fingerprints: row.fingerprints || '',

@@ -2374,15 +2374,19 @@ function getStationsForDistrict(districtId) {
 }
 
 function getVillagesForStation(stationName) {
-  return window.VILLAGES_BY_STATION[stationName] || [];
+  if (!stationName) return [];
+  const matchKey = Object.keys(window.VILLAGES_BY_STATION || {}).find(k => k.toLowerCase() === stationName.toLowerCase());
+  return matchKey ? window.VILLAGES_BY_STATION[matchKey] : [];
 }
 
 function getCriminalsInVillage(stationName, villageName) {
   const dossiers = getDossiers();
   return dossiers.filter(d => {
-    const isOfStation = d.history.some(h => h.policeStation.toLowerCase() === stationName.toLowerCase()) || 
-                         d.submittedBy.toLowerCase().includes(stationName.toLowerCase());
-    return isOfStation && d.personalInfo.village === villageName;
+    if (!d || !d.personalInfo) return false;
+    const isOfStation = d.history.some(h => h.policeStation && h.policeStation.toLowerCase() === stationName.toLowerCase()) || 
+                         (d.submittedBy && d.submittedBy.toLowerCase().includes(stationName.toLowerCase()));
+    const vName = d.personalInfo.village || '';
+    return isOfStation && vName.toLowerCase() === villageName.toLowerCase();
   });
 }
 

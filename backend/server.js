@@ -288,7 +288,36 @@ function mapCsvRowToDossier(row) {
     address: row.address || '',
     permanentAddress: row.permanentAddress || '',
     photograph: row.photograph || '',
-    village: row.village || ''
+    village: (() => {
+      let v = row.village || '';
+      if (v === 'Dehat' || v === '') {
+        const mainHistory = parsed.history && parsed.history[0] ? parsed.history[0] : {};
+        const ps = mainHistory.policeStation || 'Hazratganj';
+        const villagesMap = {
+          'Hazratganj': 'Madanpur',
+          'Gautampalli': 'Pipraghat',
+          'Hussainganj': 'Hussainganj Dehat',
+          'Chowk': 'Malihabad Village',
+          'Wazirganj': 'Riverbank Colony Dehat',
+          'Thakurganj': 'Sarfarazganj',
+          'Civil Lines': 'Cantonment Dehat',
+          'Cantonment': 'Rajapur',
+          'Georgetown': 'Allapur Village',
+          'Shivkuti': 'Handia Village',
+          'Sector-20': 'Bisrakh',
+          'Sector-39': 'Sadarpur',
+          'Sector-58': 'Bishanpura',
+          'Phase-2': 'Gheja',
+          'Phase-3': 'Mamura',
+          'Phase-1': 'Sector-1 Basti',
+          'Kavi Nagar': 'Kavi Nagar Village',
+          'MG Road': 'MG Road Dehat',
+          'Kotwali': 'Kotwali Basti'
+        };
+        v = villagesMap[ps] || 'Madanpur';
+      }
+      return v;
+    })()
   };
 
   parsed.biometrics = {
