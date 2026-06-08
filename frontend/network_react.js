@@ -90,6 +90,234 @@ const SYNTHETIC_TIMELINES = {
   ]
 };
 
+// Helper function to dynamically construct the gang relationship network from live CSV dossiers
+function buildNetworkFromCSV(dossiers) {
+  const allNodes = [];
+  const allLinks = [];
+  const nodeIds = new Set();
+  const gangNames = new Set();
+
+  // Fixed coordinates for the 4 main gangs to keep the layout clean, structured, and clustered
+  const GANG_COORDS = {
+    'Gujjar Syndicate (G-110)': { x: 220, y: 150 },
+    'Purvanchal Cartel (P-51)': { x: 220, y: 350 },
+    'Western UP Syndicate (W-88)': { x: 580, y: 150 },
+    'Raju Kaana Gang (D-102)': { x: 580, y: 350 }
+  };
+
+  let unknownGangCount = 0;
+
+  // 1. Gather all unique gangs to create Group nodes
+  dossiers.forEach(d => {
+    const gName = d.gangInfo && d.gangInfo.gangName;
+    if (gName && gName !== 'Independent' && gName !== 'N/A' && gName !== 'Independent / None') {
+      gangNames.add(gName);
+    }
+  });
+
+  // 2. Create Group nodes
+  gangNames.forEach(gName => {
+    const members = dossiers.filter(d => d.gangInfo && d.gangInfo.gangName === gName);
+    const totalCases = members.reduce((sum, d) => sum + (d.history ? d.history.length : 0), 0);
+    
+    // Assign dynamic coordinate if not in predefined coordinates
+    if (!GANG_COORDS[gName]) {
+      unknownGangCount++;
+      GANG_COORDS[gName] = {
+        x: 400 + Math.cos(unknownGangCount) * 160,
+        y: 250 + Math.sin(unknownGangCount) * 160
+      };
+    }
+
+    allNodes.push({
+      id: gName,
+      name: gName,
+      type: 'group',
+      score: 85,
+      connections: members.length,
+      cases: totalCases,
+      lastActivity: 'Active operations across multiple districts',
+      risk: 'High',
+      details: `Syndicate active in Uttar Pradesh. Total mapped members: ${members.length}. Total cases: ${totalCases}.`,
+      x: GANG_COORDS[gName].x,
+      y: GANG_COORDS[gName].y,
+      fixed: true
+    });
+    nodeIds.add(gName);
+  });
+
+  // Keep track of member counts and placement indices in each gang for clustering
+  const gangMemberCounts = {};
+  const gangMemberIndices = {};
+  
+  dossiers.forEach(d => {
+    const gName = d.gangInfo && d.gangInfo.gangName;
+    if (gName && GANG_COORDS[gName]) {
+      gangMemberCounts[gName] = (gangMemberCounts[gName] || 0) + 1;
+      gangMemberIndices[gName] = 0;
+    }
+  });
+
+  // 3. Create Subject nodes (Criminals)
+  dossiers.forEach((d, idx) => {
+    const name = d.personalInfo && d.personalInfo.name;
+    if (!name) return;
+
+    const gName = d.gangInfo && d.gangInfo.gangName;
+    let x, y;
+    
+    // Cluster members in a circle around their respective Gang Group node
+    if (gName && GANG_COORDS[gName]) {
+      const center = GANG_COORDS[gName];
+      const count = gangMemberCounts[gName] || 1;
+      const mIdx = gangMemberIndices[gName]++;
+      const angle = (mIdx / count) * Math.PI * 2;
+      const radius = 95;
+      x = center.x + Math.cos(angle) * radius;
+      y = center.y + Math.sin(angle) * radius;
+    } else {
+      // Independent/Other subjects placed in a large outer ring
+      const angle = (idx / dossiers.length) * Math.PI * 2;
+      x = 400 + Math.cos(angle) * 210;
+      y = 250 + Math.sin(angle) * 210;
+    }
+
+    const numCases = d.history ? d.history.length : 0;
+    const scoreVal = d.status === 'Wanted' ? 92 : (d.status === 'Active' ? 82 : (d.status === 'In Jail' ? 70 : 55));
+
+    allNodes.push({
+      id: d.id,
+      name: name,
+      type: 'subject',
+      score: scoreVal,
+      connections: d.gangInfo && d.gangInfo.gangMembers ? d.gangInfo.gangMembers.length : 1,
+      cases: numCases,
+      lastActivity: d.surveillance && d.surveillance.surveillanceNotes ? d.surveillance.surveillanceNotes : 'Recent movements verified by intelligence beat',
+      risk: d.surveillance && d.surveillance.surveillanceCategory && d.surveillance.surveillanceCategory.includes('Category A') ? 'High' : (d.surveillance && d.surveillance.surveillanceCategory && d.surveillance.surveillanceCategory.includes('Category B') ? 'Medium' : 'Low'),
+      details: d.surveillance && d.surveillance.intelligenceInputs ? d.surveillance.intelligenceInputs : (d.personalInfo.address || 'Under intelligence watch.'),
+      x: x,
+      y: y
+    });
+    nodeIds.add(d.id);
+
+    // Link subject to their gang (if any)
+    if (gName && gName !== 'Independent' && gName !== 'N/A' && GANG_COORDS[gName]) {
+      const isLeader = d.gangInfo.gangLeader && d.gangInfo.gangLeader.toLowerCase().includes(name.toLowerCase());
+      allLinks.push({
+        source: d.id,
+        target: gName,
+        relation: isLeader ? 'Gang Leader' : 'Syndicate Member'
+      });
+
+      // Link members directly to their leader to establish the hierarchy
+      const leaderName = d.gangInfo.gangLeader;
+      if (leaderName && leaderName !== 'N/A' && leaderName !== '') {
+        const leaderDossier = dossiers.find(o => {
+          const oName = (o.personalInfo && o.personalInfo.name || '').toLowerCase();
+          return oName.includes(leaderName.toLowerCase()) || leaderName.toLowerCase().includes(oName);
+        });
+        if (leaderDossier && leaderDossier.id !== d.id) {
+          allLinks.push({
+            source: leaderDossier.id,
+            target: d.id,
+            relation: 'Gang Commander'
+          });
+        }
+      }
+    }
+
+    // 4. Create child nodes (vehicles, properties, cases) linked to this subject.
+    // These will remain virtualized/hidden until double-clicked.
+    const angleOffset = idx * 1.5;
+
+    // Vehicles
+    if (d.vehicleDetails && Array.isArray(d.vehicleDetails)) {
+      d.vehicleDetails.forEach((veh, vIdx) => {
+        const vId = `${d.id}-veh-${vIdx}`;
+        allNodes.push({
+          id: vId,
+          name: veh.vehicleNumber || 'Vehicle',
+          type: 'vehicle',
+          score: 60,
+          connections: 1,
+          cases: 0,
+          lastActivity: 'Toll plaza logging verified',
+          risk: 'Medium',
+          details: `Vehicle used by ${name}. Spec: ${veh.vehicleType || 'Unknown'} - ${veh.registrationDetails || 'Registered'}`,
+          x: x + Math.cos(angleOffset + 0.6) * 60,
+          y: y + Math.sin(angleOffset + 0.6) * 60,
+          parentId: d.id
+        });
+        nodeIds.add(vId);
+
+        allLinks.push({
+          source: d.id,
+          target: vId,
+          relation: 'Vehicle User'
+        });
+      });
+    }
+
+    // Properties (Locations)
+    if (d.propertyDetails && Array.isArray(d.propertyDetails)) {
+      d.propertyDetails.forEach((prop, pIdx) => {
+        const pId = `${d.id}-prop-${pIdx}`;
+        allNodes.push({
+          id: pId,
+          name: prop.address || 'Property Location',
+          type: 'location',
+          score: 65,
+          connections: 1,
+          cases: 0,
+          lastActivity: 'Asset audit logged',
+          risk: 'High',
+          details: `Property asset of ${name}. ${prop.type || 'Plot'}. Estimated Value: ${prop.estimatedValue || 'N/A'}. Status: ${prop.status || 'Active'}.`,
+          x: x + Math.cos(angleOffset - 0.6) * 60,
+          y: y + Math.sin(angleOffset - 0.6) * 60,
+          parentId: d.id
+        });
+        nodeIds.add(pId);
+
+        allLinks.push({
+          source: d.id,
+          target: pId,
+          relation: 'Asset Location'
+        });
+      });
+    }
+
+    // Cases (FIRs)
+    if (d.history && Array.isArray(d.history)) {
+      d.history.forEach((fir, cIdx) => {
+        const cId = `${d.id}-case-${cIdx}`;
+        allNodes.push({
+          id: cId,
+          name: fir.firNumber || 'FIR Case',
+          type: 'case',
+          score: 80,
+          connections: 1,
+          cases: 1,
+          lastActivity: 'Under trial review',
+          risk: 'High',
+          details: `FIR Charge Sheet filed against ${name}. Law sections: ${fir.sections || 'IPC'}. PS: ${fir.policeStation || 'N/A'}. Status: ${fir.chargeSheetStatus || 'Active'}.`,
+          x: x + Math.cos(angleOffset + 1.2) * 70,
+          y: y + Math.sin(angleOffset + 1.2) * 70,
+          parentId: d.id
+        });
+        nodeIds.add(cId);
+
+        allLinks.push({
+          source: d.id,
+          target: cId,
+          relation: 'FIR Accused'
+        });
+      });
+    }
+  });
+
+  return { allNodes, allLinks };
+}
+
 // React Main Component
 function ReactNetworkGraph() {
   const [nodes, setNodes] = useState(INITIAL_SYNTHETIC_NODES);
@@ -106,6 +334,9 @@ function ReactNetworkGraph() {
   const [drawerContent, setDrawerContent] = useState(null);
   const [activeTimelineEvent, setActiveTimelineEvent] = useState(null);
   
+  // Track expanded parent nodes (double click toggles child details visibility)
+  const [expandedNodeIds, setExpandedNodeIds] = useState(new Set());
+  
   // Pan and Zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -117,15 +348,56 @@ function ReactNetworkGraph() {
   
   const boardRef = useRef(null);
 
+  // Poll and fetch live dossiers from the CSV database cache
+  useEffect(() => {
+    const loadData = () => {
+      if (typeof window.getDossiers === 'function') {
+        const dossiersList = window.getDossiers() || [];
+        if (dossiersList.length > 0) {
+          const { allNodes, allLinks } = buildNetworkFromCSV(dossiersList);
+          setNodes(allNodes);
+          setLinks(allLinks);
+          
+          // Select the first subject node initially
+          const firstSubject = allNodes.find(n => n.type === 'subject');
+          if (firstSubject) {
+            setSelectedNodeId(firstSubject.id);
+          }
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (!loadData()) {
+      const interval = setInterval(() => {
+        if (loadData()) {
+          clearInterval(interval);
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
   // Filter and virtualize nodes (Max 50 visible)
   const filteredNodes = useMemo(() => {
     return nodes.filter(n => {
+      const isSearchActive = searchQuery.length > 0;
+      
+      // Node visibility rules based on expanded parent nodes
+      let isVisibleByExpansion = n.type === 'group' || n.type === 'subject';
+      if (!isVisibleByExpansion && n.parentId) {
+        isVisibleByExpansion = expandedNodeIds.has(n.parentId);
+      }
+      
       const matchSearch = n.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          n.details.toLowerCase().includes(searchQuery.toLowerCase());
+                          (n.details && n.details.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchType = filterType === 'all' || n.type === filterType;
-      return matchSearch && matchType;
+      
+      // If search query is typed, override expansion settings to display matches immediately
+      return matchType && (isSearchActive ? matchSearch : (isVisibleByExpansion && matchSearch));
     });
-  }, [nodes, searchQuery, filterType]);
+  }, [nodes, searchQuery, filterType, expandedNodeIds]);
 
   const visibleNodes = useMemo(() => {
     return filteredNodes.slice(0, 50);
@@ -137,7 +409,16 @@ function ReactNetworkGraph() {
 
   // Selected node object
   const selectedNode = useMemo(() => {
-    return nodes.find(n => n.id === selectedNodeId) || nodes[0];
+    return nodes.find(n => n.id === selectedNodeId) || nodes[0] || {
+      name: 'Select Node',
+      type: 'subject',
+      score: 0,
+      connections: 0,
+      cases: 0,
+      lastActivity: 'N/A',
+      risk: 'Low',
+      details: 'No node selected.'
+    };
   }, [nodes, selectedNodeId]);
 
   // Links corresponding to visible nodes only
@@ -212,66 +493,25 @@ function ReactNetworkGraph() {
 
   const handleNodeDoubleClick = (e, nodeId) => {
     e.stopPropagation();
-    // Recreate/Generate children dynamically on double-click
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return;
-
-    // Check if children already generated to prevent duplication
-    const generatedChildId = `${nodeId}-child-1`;
-    if (nodes.some(n => n.id === generatedChildId)) {
-      showToast('⚠️ Connections already expanded for this node.', 'info');
+    
+    if (node.type !== 'subject') {
+      showToast('ℹ️ Details are only available for suspect nodes.', 'info');
       return;
     }
 
-    showToast(`🔄 Expanding relationship branches for: ${node.name}...`, 'info');
-
-    // Generate 5 new synthetic child nodes positioned around the double-clicked node
-    const angleStep = (Math.PI * 2) / 5;
-    const distance = 140;
-    const newNodes = [];
-    const newLinks = [];
-
-    const types = ['contact', 'vehicle', 'location', 'case'];
-    const names = {
-      contact: ['Arjun Tiwari', 'Nitin Pandey', 'Rajat Saxena', 'Kunal Tripathi', 'Rahul Sharma'],
-      vehicle: ['Black Fortuner (UP86-AB-9225)', 'Swift Lxi (UP28-AB-9866)', 'Royal Enfield (UP37-AB-8271)', 'Scorpio S11 (UP23-AB-9474)', 'Bolero (UP49-AB-4132)'],
-      location: ['Sector-88 Noida', 'Hazratganj Crossroad', 'Kavi Nagar Warehouse', 'Cantt Depot', 'MG Road Hotel'],
-      case: ['FIR-105/2023 (Forgery)', 'FIR-88/2025 (Bail Violation)', 'FIR-192/2025 (Extortion)', 'FIR-402/2024 (Threats)', 'FIR-22/2026 (Arms)']
-    };
-
-    for (let i = 0; i < 5; i++) {
-      const type = types[i % types.length];
-      const newId = `${nodeId}-child-${i + 1}`;
-      const angle = i * angleStep;
-      
-      const newX = node.x + distance * Math.cos(angle);
-      const newY = node.y + distance * Math.sin(angle);
-      
-      const childName = names[type][(i + idxHash(nodeId)) % names[type].length];
-
-      newNodes.push({
-        id: newId,
-        name: childName,
-        type: type,
-        score: Math.floor(40 + Math.random() * 40),
-        connections: Math.floor(1 + Math.random() * 5),
-        cases: Math.floor(Math.random() * 3),
-        lastActivity: 'Spotted recently',
-        risk: Math.random() > 0.5 ? 'High' : 'Medium',
-        details: `Discovered connection linked via ${node.name}. Associated suspect.`,
-        x: newX,
-        y: newY
-      });
-
-      newLinks.push({
-        source: nodeId,
-        target: newId,
-        relation: i % 2 === 0 ? 'Direct link' : 'Financial path'
-      });
-    }
-
-    setNodes(prev => [...prev, ...newNodes]);
-    setLinks(prev => [...prev, ...newLinks]);
+    setExpandedNodeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+        showToast(`📁 Collapsed connection details for ${node.name}`, 'info');
+      } else {
+        next.add(nodeId);
+        showToast(`📂 Expanded vehicle, location, and case files for ${node.name}`, 'success');
+      }
+      return next;
+    });
   };
 
   const handleNodeContextMenu = (e, node) => {
@@ -302,11 +542,22 @@ function ReactNetworkGraph() {
 
   // Reset graph layout
   const resetLayout = () => {
-    setNodes(INITIAL_SYNTHETIC_NODES);
-    setLinks(INITIAL_SYNTHETIC_LINKS);
+    if (typeof window.getDossiers === 'function') {
+      const dossiersList = window.getDossiers() || [];
+      if (dossiersList.length > 0) {
+        const { allNodes, allLinks } = buildNetworkFromCSV(dossiersList);
+        setNodes(allNodes);
+        setLinks(allLinks);
+        
+        const firstSubject = allNodes.find(n => n.type === 'subject');
+        if (firstSubject) {
+          setSelectedNodeId(firstSubject.id);
+        }
+      }
+    }
     setPan({ x: 0, y: 0 });
     setZoom(1);
-    setSelectedNodeId('center');
+    setExpandedNodeIds(new Set());
   };
 
   // Timeline Event click
@@ -316,12 +567,27 @@ function ReactNetworkGraph() {
 
   // Generate dynamic timeline for selected node
   const activeTimeline = useMemo(() => {
-    const list = SYNTHETIC_TIMELINES[selectedNodeId] || SYNTHETIC_TIMELINES[selectedNode.type] || [
-      { id: 1, date: '2026-06-08', time: '12:00', title: 'Record Registered', desc: `Suspect dossier synchronized under ${selectedNode.name}.`, severity: 'info' },
-      { id: 2, date: '2026-06-01', time: '14:30', title: 'Network Link Logged', desc: `Association established to Raju Kaana Gang D-102.`, severity: 'warning' }
-    ];
-    return list;
-  }, [selectedNodeId, selectedNode]);
+    if (selectedNode.type === 'subject') {
+      const nodeName = selectedNode.name;
+      const nodeStatus = selectedNode.status || 'Active';
+      const nodeScore = selectedNode.score || 80;
+      
+      return [
+        { id: 1, date: '2026-06-08', time: '18:42', title: `Movement Logged`, desc: `Intelligence reports verify movement of suspect ${nodeName} in their district area. Status is currently ${nodeStatus}.`, severity: nodeScore >= 80 ? 'critical' : 'warning' },
+        { id: 2, date: '2026-06-06', time: '11:15', title: `Dossier Verified`, desc: `PHQ Intelligence Unit synchronized dossier for ${nodeName} (Score: ${nodeScore}/100).`, severity: 'info' },
+        { id: 3, date: '2026-06-03', time: '09:00', title: `FIR History Check`, desc: `System verified active legal cases. Total mapped cases: ${selectedNode.cases || 0}.`, severity: 'warning' }
+      ];
+    } else if (selectedNode.type === 'group') {
+      return [
+        { id: 1, date: '2026-06-08', time: '12:00', title: `Syndicate Watch Alert`, desc: `PHQ launched state-wide observation on ${selectedNode.name}. Mapped members: ${selectedNode.connections}.`, severity: 'critical' },
+        { id: 2, date: '2026-06-01', time: '14:30', title: `Extortion Ring Identified`, desc: `Intelligence reports link group operations to major extortion activities.`, severity: 'warning' }
+      ];
+    } else {
+      return [
+        { id: 1, date: '2026-06-08', time: '10:00', title: `Metadata Verified`, desc: `Associated dossier link verified for ${selectedNode.name}. Details: ${selectedNode.details}`, severity: 'info' }
+      ];
+    }
+  }, [selectedNode]);
 
   // Utility styles
   const mainDivStyle = {
