@@ -12,7 +12,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- D3.js for network graph -->
+  <!-- React & ReactDOM (Umd) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Standalone for in-browser JSX parsing -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- D3.js for network graph calculations (still useful for simulation layout if needed) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -31,10 +36,10 @@
     <div class="login-bg-grid"></div>
     <div class="login-card">
       <div class="login-logo">
-        <div class="emblem-wrapper">
+        <div style="display: flex; justify-content: center; width: auto; margin: 0 auto 14px;">
           <img
-            src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png"
-            alt="Uttar Pradesh Police Logo" class="up-police-logo-img" />
+            src="Logo_of_Uttar_Pradesh_Police.png"
+            alt="Uttar Pradesh Police Logo" style="height: 80px; width: 80px; object-fit: contain;" />
         </div>
         <h1>CDIMS</h1>
         <p>Criminal Dossier &amp; Intelligence Management System</p>
@@ -54,31 +59,22 @@
         <label>Password / पासवर्ड</label>
         <input type="password" id="login-password" class="form-control" placeholder="••••••••" value="up@1234" />
       </div>
-      <div class="form-group">
-        <label>Login As / भूमिका चुनें (Demo)</label>
-        <select id="login-role" class="form-control">
-          <option value="l1">Level 1 — Police Station User (SHO/IO/DEO)</option>
-          <option value="l2">Level 2 — District Nodal Officer (CO/SP Office)</option>
-          <option value="l3">Level 3 — State Administrator (PHQ)</option>
-        </select>
-      </div>
       <button class="btn-login" id="btn-login" onclick="doLogin()">🔐 Secure Login / सुरक्षित लॉगिन</button>
 
-      <div class="login-role-badges" style="margin-top:20px;">
-        <div class="role-badge" onclick="quickLogin('l1')">
-          <span class="role-icon">👮</span>
-          <div class="role-name">Station User</div>
-          <div class="role-level">Level 1</div>
+
+      <div style="margin-top: 20px; padding: 12px; border: 1px dashed rgba(255,255,255,0.15); border-radius: 6px; background: rgba(255,255,255,0.02); font-size: 11px; color: rgba(255,255,255,0.65); text-align: left; line-height: 1.4;">
+        <div style="font-weight: 700; color: #EEB902; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">🗝️ Demo Mock Accounts / डेमो लॉगिन</div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; margin-bottom: 4px;">
+          <span>👮 <strong>L1: Police Station (SHO)</strong></span>
+          <span><code>sho_hazratganj</code> / <code>up@1234</code></span>
         </div>
-        <div class="role-badge" onclick="quickLogin('l2')">
-          <span class="role-icon">🏅</span>
-          <div class="role-name">District Nodal</div>
-          <div class="role-level">Level 2</div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; margin-bottom: 4px;">
+          <span>🏅 <strong>L2: District Nodal (CO)</strong></span>
+          <span><code>co_lucknow</code> / <code>up@1234</code></span>
         </div>
-        <div class="role-badge" onclick="quickLogin('l3')">
-          <span class="role-icon">⭐</span>
-          <div class="role-name">PHQ Admin</div>
-          <div class="role-level">Level 3</div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>⭐ <strong>L3: PHQ Admin (DG)</strong></span>
+          <span><code>phq_admin</code> / <code>up@1234</code></span>
         </div>
       </div>
     </div>
@@ -92,10 +88,10 @@
     <!-- SIDEBAR -->
     <nav class="sidebar" id="sidebar">
       <div class="sidebar-logo">
-        <div class="logo-badge">
-          <div class="logo-icon-wrapper">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png"
-              alt="UP Police Logo" class="up-police-logo-img-small" />
+        <div class="logo-badge" style="display: flex; align-items: center; gap: 10px;">
+          <div class="logo-icon-wrapper" style="display: flex; align-items: center; background: transparent; border: none;">
+            <img src="Logo_of_Uttar_Pradesh_Police.png"
+              alt="UP Police Logo" class="up-police-logo-img-small" style="height: 38px; width: 38px; object-fit: contain;" />
           </div>
           <div class="logo-text">
             <h2>UP CDIMS</h2>
@@ -129,10 +125,10 @@
 
       <!-- HEADER -->
       <header class="header" id="main-header">
-        <div class="header-branding">
-          <div class="header-emblem-wrapper">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png"
-              alt="UP Police Logo" class="up-police-logo-img-small" />
+        <div class="header-branding" style="display: flex; align-items: center; gap: 12px;">
+          <div class="header-emblem-wrapper" style="display: flex; align-items: center;">
+            <img src="Logo_of_Uttar_Pradesh_Police.png"
+              alt="UP Police Logo" class="up-police-logo-img-small" style="height: 40px; width: 40px; object-fit: contain;" />
           </div>
           <div class="header-title">
             <h2 id="page-title">Dashboard</h2>
@@ -166,14 +162,14 @@
       <div class="ticker-bar">
         <span class="ticker-label">⚡ LIVE</span>
         <span class="ticker-text" id="ticker-text">
-          🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp;
-          ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp;
-          🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
-          📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area &nbsp;|&nbsp;
-          🔴 WANTED: Rajesh Yadav alias "Raju Kaana" — NBW Active in Lucknow/Noida &nbsp;|&nbsp;
-          ⚠️ Bail Released: Amit Mishra (CRM-2026-0002) — Hazratganj &nbsp;|&nbsp;
-          🚨 New FIR: Sector-20 PS, Noida — Arms Act Violation &nbsp;|&nbsp;
-          📍 Criminal Movement Alert: Vikram Singh spotted Varanasi Cantt area
+          🔴 WANTED: <a href="javascript:void(0)" onclick="openDossierById('CRM-2026-0001')">Rajesh Yadav alias "Raju Kaana"</a> — NBW Active in Lucknow/Noida &nbsp;|&nbsp;
+          ⚠️ Bail Released: <a href="javascript:void(0)" onclick="openDossierById('CRM-2026-0002')">Amit Mishra (CRM-2026-0002)</a> — Hazratganj &nbsp;|&nbsp;
+          🚨 <a href="javascript:void(0)" onclick="navigateTo('alerts')">New FIR: Sector-20 PS, Noida — Arms Act Violation</a> &nbsp;|&nbsp;
+          📍 Criminal Movement Alert: <a href="javascript:void(0)" onclick="openDossierById('CRM-2026-0003')">Vikram Singh</a> spotted Varanasi Cantt area &nbsp;|&nbsp;
+          🔴 WANTED: <a href="javascript:void(0)" onclick="openDossierById('CRM-2026-0001')">Rajesh Yadav alias "Raju Kaana"</a> — NBW Active in Lucknow/Noida &nbsp;|&nbsp;
+          ⚠️ Bail Released: <a href="javascript:void(0)" onclick="openDossierById('CRM-2026-0002')">Amit Mishra (CRM-2026-0002)</a> — Hazratganj &nbsp;|&nbsp;
+          🚨 <a href="javascript:void(0)" onclick="navigateTo('alerts')">New FIR: Sector-20 PS, Noida — Arms Act Violation</a> &nbsp;|&nbsp;
+          📍 Criminal Movement Alert: <a href="javascript:void(0)" onclick="openDossierById('CRM-2026-0003')">Vikram Singh</a> spotted Varanasi Cantt area
         </span>
       </div>
 
@@ -342,7 +338,7 @@
     </div>
   </div>
 
-  <script src="network.js"></script>
+  <script type="text/babel" src="network_react.js"></script>
   <script src="map.js"></script>
   <script src="app.js"></script>
 </body>

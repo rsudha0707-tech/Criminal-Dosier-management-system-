@@ -56,26 +56,52 @@ window.initCrimeMap = function(containerId) {
   const iconGang     = createIcon('⛔', '#dc2626', 36);
 
   // ── Criminal Location Markers ──
-  const criminalLocations = [
-    { lat: 26.8618, lng: 80.9278, name: "Rajesh Yadav (Raju Kaana)", type: "wanted", info: "CRM-2026-0001 | Hazratganj Area | Category A", district: "Lucknow" },
-    { lat: 26.8422, lng: 80.9234, name: "Amit Mishra (Panditji)", type: "bail", info: "CRM-2026-0002 | Aliganj | On Bail - Reporting weekly", district: "Lucknow" },
-    { lat: 25.3176, lng: 82.9739, name: "Vikram Singh (Vicky Shooter)", type: "wanted", info: "CRM-2026-0003 | Varanasi Cantt | Last Spotted - 5 days ago", district: "Varanasi" },
-    { lat: 28.5355, lng: 77.3910, name: "Satish Gujjar (Fauji)", type: "jail", info: "CRM-2026-0004 | Luksar Jail | Under incarceration", district: "Noida" },
-    { lat: 25.4358, lng: 81.8463, name: "Rakesh Patel (Raka)", type: "bail", info: "CRM-2026-0005 | Prayagraj | On bail, fortnightly reporting", district: "Prayagraj" },
-    { lat: 26.8500, lng: 80.9100, name: "Sanjay Pal", type: "active", info: "CRM-2026-0006 | Chowk, Lucknow | Being tracked", district: "Lucknow" }
-  ];
+  const dossiers = getDossiers();
+  const districtCenters = {
+    lucknow: [26.8467, 80.9462],
+    varanasi: [25.3176, 82.9739],
+    prayagraj: [25.4358, 81.8463],
+    noida: [28.5355, 77.3910],
+    ghaziabad: [28.6692, 77.4538],
+    agra: [27.1767, 78.0081],
+    kanpur: [26.4499, 80.3319]
+  };
+
+  const statusMap = {
+    'Wanted': 'wanted',
+    'Out on Bail': 'bail',
+    'In Jail': 'jail',
+    'Active': 'active'
+  };
 
   const iconMap = { wanted: iconWanted, bail: iconBail, jail: iconJail, active: iconActive };
 
-  criminalLocations.forEach(loc => {
-    const marker = L.marker([loc.lat, loc.lng], { icon: iconMap[loc.type] || iconActive });
+  dossiers.forEach((d, index) => {
+    if (!d) return;
+    const personalInfo = d.personalInfo || {};
+    const mainHistory = d.history && d.history[0] ? d.history[0] : {};
+    const districtKey = mainHistory.district ? mainHistory.district.toLowerCase() : 'lucknow';
+    const center = districtCenters[districtKey] || districtCenters.lucknow;
+    
+    // Seeded random number generator so coordinates remain stable on map reload
+    let seed = 0;
+    const nameStr = personalInfo.name || '';
+    for (let i = 0; i < nameStr.length; i++) seed += nameStr.charCodeAt(i);
+    const offsetLat = (Math.sin(seed + index) * 0.5) * 0.06;
+    const offsetLng = (Math.cos(seed * 2 + index) * 0.5) * 0.06;
+
+    const lat = center[0] + offsetLat;
+    const lng = center[1] + offsetLng;
+    const typeKey = statusMap[d.status] || 'active';
+
+    const marker = L.marker([lat, lng], { icon: iconMap[typeKey] || iconActive });
     marker.addTo(map);
     marker.bindPopup(`
       <div style="font-family:'Inter',sans-serif; min-width:180px;">
-        <div style="font-size:13px; font-weight:700; color:#1e3a5f; margin-bottom:4px;">${loc.name}</div>
-        <div style="font-size:11px; color:#475569;">${loc.info}</div>
+        <div style="font-size:13px; font-weight:700; color:#1e3a5f; margin-bottom:4px;">${personalInfo.name || 'Unknown Criminal'}</div>
+        <div style="font-size:11px; color:#475569;">${d.id || 'CRM-XXXX'} | ${mainHistory.policeStation || 'Hazratganj'} PS | ${d.status || 'Active'}</div>
         <div style="font-size:10px; margin-top:6px;">
-          <span style="background:#1e3a5f; color:white; padding:2px 6px; border-radius:4px;">📍 ${loc.district}</span>
+          <span style="background:#1e3a5f; color:white; padding:2px 6px; border-radius:4px;">📍 ${mainHistory.district || 'Lucknow'}</span>
         </div>
       </div>
     `, { maxWidth: 240 });
@@ -136,18 +162,19 @@ window.initCrimeMap = function(containerId) {
   });
 
   // ── District Boundary Labels ──
-  const districtCenters = [
+  const districtLabelCenters = [
     { lat: 26.8467, lng: 80.9462, name: "Lucknow\n7 Cases", count: 7 },
     { lat: 25.3176, lng: 82.9739, name: "Varanasi\n2 Cases", count: 2 },
     { lat: 25.4358, lng: 81.8463, name: "Prayagraj\n1 Case", count: 1 },
     { lat: 28.5355, lng: 77.3910, name: "Noida\n3 Cases", count: 3 }
   ];
 
-  districtCenters.forEach(d => {
-    L.divIcon({
+  districtLabelCenters.forEach(d => {
+    const labelIcon = L.divIcon({
       html: `<div style="font-size:11px; font-weight:700; color:rgba(238,185,2,0.9); white-space:nowrap; text-shadow:0 1px 4px #000;">${d.name}</div>`,
       className: ''
     });
+    L.marker([d.lat, d.lng], { icon: labelIcon }).addTo(map);
   });
 
   // ── Map controls overlay ──

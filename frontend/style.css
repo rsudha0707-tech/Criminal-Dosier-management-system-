@@ -8,52 +8,52 @@
 
 /* ── CSS Variables ── */
 :root {
-  /* Official UP Police Color Palette */
-  --navy-950:   #f4f6f9; /* Light background for portal content */
-  --navy-900:   #0a1931; /* Deep Navy Blue for Sidebar/Login card */
-  --navy-800:   #0f224b; /* Header/Secondary Sidebar background */
-  --navy-700:   #152f6c;
-  --navy-600:   #1e3e84;
-  --navy-500:   #2b57b4;
-  --navy-400:   #3e74e6;
+  /* Official UP Police Color Palette - Premium Dark Navy & Gold Theme */
+  --navy-950:   #020813; /* Almost black-blue for main background */
+  --navy-900:   #061329; /* Very dark navy blue for cards/sidebar */
+  --navy-800:   #0b1e3f; /* Deep navy for headers and active elements */
+  --navy-700:   #122d5a; /* Mid-tone navy blue */
+  --navy-600:   #1b3f7a;
+  --navy-500:   #25549d;
+  --navy-400:   #346cc4;
   
-  --gold-400:   #f5d061;
+  --gold-400:   #ffd700; /* Rich gold text */
   --gold-500:   #e5b839; /* Official Badge Gold */
   --gold-600:   #c69923;
   --gold-700:   #a07713;
   
-  --red-500:    #b91c1c; /* Official Crimson Red */
-  --red-400:    #dc2626;
+  --red-500:    #dc2626; /* Official Crimson Red */
+  --red-400:    #ef4444;
   --red-900:    #7f1d1d;
   --red-950:    #450a0a;
   
-  --green-500:  #16a34a;
-  --green-400:  #22c55e;
+  --green-500:  #22c55e;
+  --green-400:  #4ade80;
   --green-900:  #14532d;
   
-  --amber-500:  #d97706;
-  --amber-400:  #f59e0b;
+  --amber-500:  #f59e0b;
+  --amber-400:  #fbbf24;
   --amber-900:  #78350f;
   
-  --blue-500:   #2563eb;
+  --blue-500:   #3b82f6;
   --blue-400:   #60a5fa;
-  --blue-600:   #1d4ed8;
+  --blue-600:   #2563eb;
   
-  --purple-500: #7c3aed;
+  --purple-500: #8b5cf6;
   --purple-400: #a78bfa;
   
-  --cyan-500:   #0891b2;
+  --cyan-500:   #06b6d4;
   --cyan-400:   #22d3ee;
 
-  --text-primary:   #0f172a; /* High contrast dark gray/black text */
-  --text-secondary: #475569; /* Medium gray subtext */
-  --text-muted:     #94a3b8; /* Muted gray placeholder text */
+  --text-primary:   #f8fafc; /* Crisp clean off-white text */
+  --text-secondary: #cbd5e1; /* Smooth light-gray subtext */
+  --text-muted:     #64748b; /* Muted slate gray */
   --text-gold:      #e5b839;
   
-  /* Modern clean card backgrounds (Light Theme style) */
-  --glass-bg:       #ffffff;
-  --glass-border:   rgba(15, 31, 61, 0.08);
-  --glass-hover:    rgba(15, 31, 61, 0.02);
+  /* Modern premium dark glassmorphism card backgrounds */
+  --glass-bg:       rgba(6, 19, 41, 0.75);
+  --glass-border:   rgba(238, 185, 2, 0.15); /* Subtle gold border tint */
+  --glass-hover:    rgba(238, 185, 2, 0.05);
   
   --sidebar-w:  260px;
   --header-h:   64px;
@@ -62,10 +62,10 @@
   --radius-lg:  16px;
   --radius-xl:  24px;
   
-  --shadow-sm:  0 1px 3px rgba(0,0,0,0.05);
-  --shadow-md:  0 4px 16px rgba(15,31,61,0.06);
-  --shadow-lg:  0 8px 32px rgba(15,31,61,0.08);
-  --shadow-gold: 0 0 20px rgba(197,30,36,0.08);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.25);
+  --shadow-md:  0 4px 16px rgba(0,0,0,0.45);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,0.55);
+  --shadow-gold: 0 0 20px rgba(238,185,2,0.12);
   
   --transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
 }
@@ -1437,72 +1437,75 @@ textarea.form-control-sm { resize: vertical; min-height: 80px; }
   --upp-gold: #e5b839;      /* Brass Gold */
 }
 
-/* Light theme background glow */
+/* Shiny dark space background glow */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(185, 28, 28, 0.05) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 40% at 80% 80%, rgba(10, 25, 49, 0.03) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 208, 97, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 80%, rgba(239, 68, 68, 0.04) 0%, transparent 60%),
     var(--navy-950) !important;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Header style tuned to official light style with red-blue top flag line */
+/* Header style: Premium glassmorphic dark header */
 .header {
-  background: #ffffff !important;
-  border-bottom: 1px solid rgba(15, 31, 61, 0.08) !important;
+  background: rgba(11, 21, 40, 0.7) !important;
+  backdrop-filter: blur(16px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-top: 4px solid !important;
   border-image: linear-gradient(to right, var(--upp-red) 50%, var(--upp-blue) 50%) 1 !important;
 }
 .header-title h2 {
-  color: #0f172a !important;
-}
-.header-title p {
-  color: #475569 !important;
-}
-.header-icon-btn {
-  background: #f1f5f9 !important;
-  border-color: #e2e8f0 !important;
-  color: #475569 !important;
-}
-.header-icon-btn:hover {
-  border-color: var(--upp-red) !important;
-  color: var(--upp-red) !important;
-}
-.lang-toggle {
-  background: #f1f5f9 !important;
-  border-color: #e2e8f0 !important;
-}
-.lang-btn {
-  color: #475569 !important;
-}
-.lang-btn.active {
-  background: var(--upp-red) !important;
   color: #ffffff !important;
 }
+.header-title p {
+  color: #94a3b8 !important;
+}
+.header-icon-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #e2e8f0 !important;
+}
+.header-icon-btn:hover {
+  border-color: var(--upp-gold) !important;
+  color: var(--upp-gold) !important;
+  background: rgba(245, 208, 97, 0.06) !important;
+}
+.lang-toggle {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.lang-btn {
+  color: #94a3b8 !important;
+}
+.lang-btn.active {
+  background: var(--upp-gold) !important;
+  color: #040714 !important;
+}
 
-/* Sidebar styling: preserve dark, professional navy background with gold/white text */
+/* Sidebar styling: clean dark midnight layout */
 .sidebar {
-  background: var(--upp-blue) !important;
+  background: #080f1e !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .sidebar-logo {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
-.sidebar-logo .logo-icon {
-  background: linear-gradient(135deg, var(--upp-red), var(--upp-blue)) !important;
+.sidebar-logo .logo-icon-wrapper {
+  background: transparent !important;
 }
 .sidebar-logo .logo-text h2 {
   color: var(--upp-gold) !important;
 }
 .sidebar-logo .logo-text p {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: #94a3b8 !important;
 }
 .sidebar-user {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .user-avatar {
   border-color: var(--upp-gold) !important;
@@ -1514,145 +1517,163 @@ body::before {
   color: var(--upp-gold) !important;
 }
 .user-station {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: #94a3b8 !important;
 }
+
+/* Navigation items hover states */
 .nav-item {
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: #cbd5e1 !important;
 }
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.04) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
   color: #ffffff !important;
 }
 .nav-item.active {
-  background: linear-gradient(90deg, rgba(185, 28, 28, 0.18), transparent) !important;
+  background: rgba(245, 208, 97, 0.08) !important;
   color: var(--upp-gold) !important;
 }
 .nav-item.active::before {
-  background: var(--upp-red) !important;
+  background: var(--upp-gold) !important;
 }
 .nav-section-label {
   color: rgba(255, 255, 255, 0.35) !important;
 }
 .sidebar-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Override Login Button to Crimson/Navy Flag Gradient */
+/* Login button styling */
 .btn-login {
   background: linear-gradient(135deg, var(--upp-red), var(--upp-blue)) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25) !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 .btn-login:hover {
-  box-shadow: 0 6px 20px rgba(185, 28, 28, 0.45) !important;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45) !important;
   border-color: var(--upp-gold) !important;
 }
 
-/* Primary buttons using Crimson flag red */
+/* Primary buttons */
 .btn-primary {
   background: linear-gradient(135deg, var(--upp-red), #991b1b) !important;
   color: #ffffff !important;
 }
 .btn-primary:hover {
-  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.35) !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35) !important;
 }
 
-/* Ticker Bar using subtle Red styling */
+/* Ticker Bar dark styling */
 .ticker-bar {
-  background: rgba(185, 28, 28, 0.05) !important;
-  border-bottom: 1px solid rgba(185, 28, 28, 0.12) !important;
-  color: #0f172a !important;
+  background: linear-gradient(90deg, #F59E0B, #E5A910) !important;
+  border-bottom: 1px solid #E5A910 !important;
+  color: #081B3A !important;
 }
 .ticker-label {
-  background: var(--upp-red) !important;
+  background: #DC2626 !important;
   color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.3);
 }
 .ticker-text {
-  color: #1e293b !important;
+  color: #081B3A !important;
+  font-weight: 600;
+}
+.ticker-text a {
+  color: #081B3A !important;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 700;
+  transition: color 0.2s ease;
+}
+.ticker-text a:hover {
+  color: #DC2626 !important;
 }
 
-/* Section Indicators using Crimson to Navy gradient */
+/* Section Indicators */
 .section-header h3::before {
-  background: linear-gradient(180deg, var(--upp-red), var(--upp-blue)) !important;
+  background: linear-gradient(180deg, var(--upp-red), var(--upp-gold)) !important;
 }
 
-/* Forms and Inputs custom light styling */
-.form-control, .form-control-sm, .filter-select {
-  background: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
-  color: #0f172a !important;
+/* Forms and Inputs custom dark styling */
+.form-control, .form-control-sm, .filter-select, select.form-control-sm {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
 }
 .form-control:focus, .form-control-sm:focus, .filter-select:focus {
-  border-color: var(--upp-red) !important;
-  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.15) !important;
+  border-color: var(--upp-gold) !important;
+  box-shadow: 0 0 0 3px rgba(245, 208, 97, 0.15) !important;
 }
 
-/* Table header customization */
-.data-table th {
-  background: #f1f5f9 !important;
-  color: #475569 !important;
-  border-bottom: 1px solid rgba(15, 31, 61, 0.08) !important;
-}
-.data-table td {
-  border-bottom: 1px solid #f1f5f9 !important;
-}
-
-/* Light scrollbars */
-::-webkit-scrollbar-track {
-  background: #f1f5f9 !important;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1 !important;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--upp-red) !important;
-}
-
-/* Modern light modals */
+/* Premium Dark Glassmorphic Modals */
 .modal {
-  background: #ffffff !important;
-  color: #0f172a !important;
-  border-color: rgba(15, 31, 61, 0.1) !important;
+  background: rgba(11, 20, 38, 0.94) !important;
+  backdrop-filter: blur(25px) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 32px rgba(245, 208, 97, 0.04) !important;
+  overflow: hidden !important; /* Fix background clipping */
 }
 .modal-header {
-  border-bottom-color: #f1f5f9 !important;
-  background: linear-gradient(90deg, rgba(185, 28, 28, 0.04), transparent) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  background: linear-gradient(90deg, rgba(245, 208, 97, 0.05), transparent) !important;
+}
+.modal-body {
+  padding: 24px !important;
 }
 .info-item {
-  background: #f8fafc !important;
-  border: 1px solid rgba(15, 31, 61, 0.04) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  min-width: 0 !important; /* Crucial fix for grid items overflow */
 }
 .info-label {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
 .info-value {
-  color: #0f172a !important;
+  color: #ffffff !important;
 }
 .modal-tab {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
 .modal-tab.active {
-  color: var(--upp-red) !important;
-  border-bottom-color: var(--upp-red) !important;
+  color: var(--upp-gold) !important;
+  border-bottom-color: var(--upp-gold) !important;
 }
+.modal-tab:hover {
+  color: #ffffff !important;
+}
+
+/* FIR Timeline items in Modal */
 .fir-item {
-  background: #f8fafc !important;
-  border-color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
   border-left-color: var(--upp-red) !important;
 }
 .fir-meta {
-  color: #475569 !important;
+  color: #94a3b8 !important;
 }
 
-/* Login card theme tweaks: maintain dark/mysterious glow login screen with clean elements */
+/* Global scrollbars for dark theme */
+::-webkit-scrollbar-track {
+  background: #030712 !important;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 4px !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--upp-gold) !important;
+}
+
+/* Login Card styling adjustments */
 #login-screen {
-  background: radial-gradient(circle at center, #0e1c3e 0%, #040714 100%) !important;
+  background: radial-gradient(circle at center, #091225 0%, #02040a 100%) !important;
 }
 .login-card {
-  background: rgba(10, 25, 49, 0.8) !important;
-  border: 1px solid rgba(229, 184, 57, 0.18) !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(229, 184, 57, 0.1) !important;
+  background: rgba(11, 20, 38, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(245, 208, 97, 0.15) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(245, 208, 97, 0.05) !important;
 }
 .login-card::before {
   content: '';
@@ -1663,41 +1684,62 @@ body::before {
   z-index: 2;
 }
 .login-card .form-control {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: #ffffff !important;
 }
 .login-card .form-control:focus {
   border-color: var(--upp-gold) !important;
-  box-shadow: 0 0 0 3px rgba(229, 184, 57, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(245, 208, 97, 0.15) !important;
 }
 .login-card .form-group label {
   color: rgba(255, 255, 255, 0.7) !important;
 }
 .login-card select option {
-  background: #0a1931 !important;
+  background: #060b14 !important;
   color: #ffffff !important;
 }
 .login-dept {
-  background: linear-gradient(90deg, rgba(185, 28, 28, 0.15), rgba(10, 25, 49, 0.8)) !important;
-  border-color: rgba(229, 184, 57, 0.2) !important;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.12), rgba(11, 20, 38, 0.8)) !important;
+  border-color: rgba(245, 208, 97, 0.15) !important;
+  color: #cbd5e1 !important;
 }
 
-/* Village Directory overrides */
+/* Village directory card highlights */
 .village-card.active {
-  background: linear-gradient(135deg, rgba(185, 28, 28, 0.05), rgba(10, 25, 49, 0.03)) !important;
-  border-color: var(--upp-red) !important;
-  box-shadow: 0 4px 15px rgba(185, 28, 28, 0.08) !important;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), rgba(245, 208, 97, 0.02)) !important;
+  border-color: var(--upp-gold) !important;
+  box-shadow: 0 4px 15px rgba(245, 208, 97, 0.08) !important;
 }
 .village-card.active span {
-  color: var(--upp-red) !important;
+  color: var(--upp-gold) !important;
 }
 .village-criminal-row-card:hover {
-  border-color: rgba(185, 28, 28, 0.25) !important;
+  border-color: rgba(245, 208, 97, 0.2) !important;
 }
 .badge-wanted {
   background: rgba(185, 28, 28, 0.15) !important;
   color: var(--upp-red) !important;
   border-color: rgba(185, 28, 28, 0.25) !important;
+}
+
+/* AI card overrides for dark theme alignment */
+.ai-card {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+.ai-content {
+  color: #cbd5e1 !important;
+}
+
+/* Ensure modal tabs wrap correctly and are never hidden or clipped */
+.modal-tabs {
+  flex-wrap: wrap !important;
+  gap: 4px 8px !important;
+}
+
+/* Adjust district name bar spacing */
+.district-name {
+  width: 120px !important;
 }
 

@@ -23,7 +23,7 @@ const SUPABASE_URL = 'https://immwobsoziqqftaoinup.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltbXdvYnNvemlxcWZ0YW9pbnVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4ODQ0NzksImV4cCI6MjA5MzQ2MDQ3OX0.utM5jrzWVajZTmRXbVH3sqc-pMDvQGt-z7dzkrWFaSw';
 // ══════════════════════════════════════════════════════════
 
-const CDIMS_DB_VERSION = 'v2-village';
+const CDIMS_DB_VERSION = 'v3-csv';
 
 // Internal state
 let _sb = null;   // Supabase client
@@ -62,8 +62,26 @@ const MASTER_DATA = {
     {
       id: 'noida', name: 'Gautam Buddha Nagar (नोएडा)', isCommissionerate: true,
       circles: [
-        { id: 'noida_1', name: 'Noida Zone 1', stations: ['Sector-20', 'Sector-39', 'Sector-58'] },
+        { id: 'noida_1', name: 'Noida Zone 1', stations: ['Sector-20', 'Sector-39', 'Sector-58', 'Phase-1'] },
         { id: 'noida_2', name: 'Noida Zone 2', stations: ['Phase-2', 'Phase-3'] }
+      ]
+    },
+    {
+      id: 'ghaziabad', name: 'Ghaziabad (गाजियाबाद)', isCommissionerate: true,
+      circles: [
+        { id: 'kavi_nagar_circle', name: 'Kavi Nagar Circle', stations: ['Kavi Nagar'] }
+      ]
+    },
+    {
+      id: 'agra', name: 'Agra (आगरा)', isCommissionerate: true,
+      circles: [
+        { id: 'mg_road_circle', name: 'MG Road Circle', stations: ['MG Road'] }
+      ]
+    },
+    {
+      id: 'kanpur', name: 'Kanpur (कानपुर)', isCommissionerate: true,
+      circles: [
+        { id: 'kotwali_circle', name: 'Kotwali Circle', stations: ['Kotwali'] }
       ]
     }
   ],
@@ -93,7 +111,11 @@ const VILLAGES_BY_STATION = {
   'Sector-39': ['Sadarpur', 'Raipur', 'Khajoorpur'],
   'Sector-58': ['Bishanpura', 'Noida Sector-58 Village'],
   'Phase-2': ['Gheja', 'Noida Phase 2 Basti'],
-  'Phase-3': ['Mamura', 'Garhi Chaukhandi']
+  'Phase-3': ['Mamura', 'Garhi Chaukhandi'],
+  'Phase-1': ['Sector-1 Basti', 'Phase 1 Dehat'],
+  'Kavi Nagar': ['Kavi Nagar Village', 'Ghaziabad Basti'],
+  'MG Road': ['MG Road Dehat', 'Agra Fort Village'],
+  'Kotwali': ['Kotwali Basti', 'Kanpur Dehat']
 };
 
 // ──────────────────────────────────────────────────────────
@@ -544,51 +566,323 @@ function _firToRow(fir, criminalId) {
 }
 
 // ══════════════════════════════════════════════════════════
-//  INIT — Load data from Supabase or localStorage
+//  CSV PARSING & DATA TRACKING SYSTEM
 // ══════════════════════════════════════════════════════════
-async function _doInit() {
-  if (_useSupabase) {
-    try {
-      const { data: rows, error } = await _sb.from('criminals').select('*').order('created_at');
-      if (error) throw error;
 
-      const { data: firs, error: firErr } = await _sb.from('criminal_firs').select('*');
-      if (firErr) throw firErr;
+function parseCSV(text) {
+  if (!text) return [];
+  // Detect delimiter: count commas and tabs in the first line
+  const firstLine = text.split(/\r?\n/)[0] || '';
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = tabCount > commaCount ? '\t' : ',';
 
-      if (!rows || rows.length === 0) {
-        // First run — seed Supabase with sample data
-        await _seedSupabase();
-        return; // _seedSupabase re-calls _doInit
+  const lines = [];
+  let row = [""];
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i+1];
+    if (c === '"') {
+      if (inQuotes && next === '"') {
+        row[row.length - 1] += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
       }
-
-      // Build FIR lookup map
-      const firMap = {};
-      (firs || []).forEach(f => {
-        if (!firMap[f.criminal_id]) firMap[f.criminal_id] = [];
-        firMap[f.criminal_id].push(f);
-      });
-
-      _cache = rows.map(r => _rowToDossier(r, firMap[r.id] || []));
-
-      // Load audit logs
-      const { data: logs } = await _sb.from('audit_logs').select('*')
-        .order('created_at', { ascending: false }).limit(100);
-      _auditCache = (logs || []).map(l => ({
-        timestamp: l.created_at,
-        username: l.username,
-        role: l.role,
-        action: l.action,
-        details: l.details
-      }));
-
-      console.info(`[CDIMS Backend] ✓ Loaded ${_cache.length} records from Supabase.`);
-    } catch (err) {
-      console.error('[CDIMS Backend] Supabase load failed, using localStorage:', err.message);
-      _loadLocalStorage();
+    } else if (c === delimiter && !inQuotes) {
+      row.push('');
+    } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      if (c === '\r' && next === '\n') { i++; }
+      lines.push(row);
+      row = [''];
+    } else {
+      row[row.length - 1] += c;
     }
-  } else {
+  }
+  if (row.length > 1 || row[0] !== '') {
+    lines.push(row);
+  }
+  if (lines.length === 0) return [];
+
+  const headers = lines[0].map(h => h.trim());
+  const data = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.length < headers.length) continue;
+    const obj = {};
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = line[j] ? line[j].trim() : '';
+    }
+    data.push(obj);
+  }
+  return data;
+}
+
+function _csvRowToDossier(row) {
+  // Support custom dummy data format: record_id, full_name, etc.
+  if (row.record_id || row.full_name) {
+    const ps = row.police_station || 'Hazratganj';
+    
+    // Match village to station's villages or default
+    let village = 'Dehat';
+    if (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[ps] && window.VILLAGES_BY_STATION[ps].length > 0) {
+      village = window.VILLAGES_BY_STATION[ps][0];
+    }
+
+    // Map surveillance status (Closed, Observed, Watchlist) to status and category
+    let status = 'Active';
+    let category = 'Category B (Active Criminal)';
+    if (row.surveillance_status === 'Watchlist') {
+      status = 'Wanted';
+      category = 'Category A (Hardened Gangster)';
+    } else if (row.surveillance_status === 'Observed') {
+      status = 'Active';
+      category = 'Category B (Active Criminal)';
+    } else if (row.surveillance_status === 'Closed') {
+      status = 'Out on Bail';
+      category = 'Category C (Petty Associate)';
+    }
+
+    // Parse property details if present
+    let propertyDetails = [];
+    if (row.property_details) {
+      propertyDetails = [{
+        type: 'Asset',
+        address: 'District ' + (row.district || 'Lucknow'),
+        estimatedValue: 'N/A',
+        status: row.property_details
+      }];
+    }
+
+    // Parse vehicle details if present
+    let vehicleDetails = [];
+    if (row.vehicle_details) {
+      vehicleDetails = [{
+        vehicleNumber: row.vehicle_details,
+        vehicleType: 'Vehicle',
+        registrationDetails: 'Registered'
+      }];
+    }
+
+    // Approximate DOB based on age
+    const age = parseInt(row.age) || 30;
+    const dob = new Date(new Date().getFullYear() - age, 0, 1).toISOString().split('T')[0];
+
+    // Normalize district ID to match MASTER_DATA key
+    let distId = row.district ? row.district.toLowerCase().trim() : 'lucknow';
+    if (distId.includes('gautam') || distId.includes('noida')) {
+      distId = 'noida';
+    }
+
+    // Build history entry
+    const history = [{
+      firNumber: row.fir_reference || 'Pending',
+      crimeNumber: 'Pending',
+      policeStation: ps,
+      district: distId,
+      sections: row.crime_history || 'Under Investigation',
+      chargeSheetStatus: 'Under Investigation',
+      convictionDetails: 'Under Trial',
+      bailStatus: status === 'Out on Bail' ? 'Out on Bail' : 'Pending',
+      courtCaseDetails: 'Under Investigation'
+    }];
+
+    return {
+      id: row.record_id || 'CRM-2026-XXXX',
+      personalInfo: {
+        name: row.full_name || '',
+        aliasName: row.alias || '',
+        nickname: '',
+        fatherName: 'N/A',
+        motherName: 'N/A',
+        gender: 'Male',
+        dob: dob,
+        age: age,
+        mobile: 'N/A',
+        aadhaar: 'XXXX-XXXX-XXXX',
+        address: row.last_known_location || 'UP',
+        permanentAddress: 'UP',
+        photograph: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
+        village: village
+      },
+      biometrics: {
+        fingerprints: row.biometric_profile || 'SECURED',
+        faceImage: 'FACE-RECOGNIZED',
+        identificationMarks: 'None reported',
+        height: '175 cm',
+        weight: '75 kg',
+        eyeColor: 'Black',
+        bloodGroup: 'B+'
+      },
+      history: history,
+      gangInfo: {
+        gangName: row.gang_details || 'Independent',
+        gangLeader: 'N/A',
+        gangMembers: [],
+        areaOfOperation: row.district || 'Lucknow',
+        networkMapping: []
+      },
+      surveillance: {
+        historySheetNumber: 'HS-PENDING',
+        surveillanceCategory: category,
+        surveillanceNotes: row.last_known_location || 'Under surveillance',
+        beatOfficerRemarks: 'None',
+        intelligenceInputs: row.notice || 'None'
+      },
+      propertyDetails: propertyDetails,
+      vehicleDetails: vehicleDetails,
+      intelReports: [],
+      status: status,
+      approvalStatus: 'Approved',
+      submittedBy: 'SHO ' + ps,
+      verifiedBy: 'CO Office',
+      approvedBy: 'SP Office',
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  // Native dossiers.csv schema mapping
+  let history = [];
+  try {
+    history = row.history ? JSON.parse(row.history) : [];
+  } catch(e) { console.error("Error parsing CSV history field", e); }
+
+  let propertyDetails = [];
+  try {
+    propertyDetails = row.propertyDetails ? JSON.parse(row.propertyDetails) : [];
+  } catch(e) { console.error("Error parsing CSV propertyDetails field", e); }
+
+  let vehicleDetails = [];
+  try {
+    vehicleDetails = row.vehicleDetails ? JSON.parse(row.vehicleDetails) : [];
+  } catch(e) { console.error("Error parsing CSV vehicleDetails field", e); }
+
+  let intelReports = [];
+  try {
+    intelReports = row.intelReports ? JSON.parse(row.intelReports) : [];
+  } catch(e) { console.error("Error parsing CSV intelReports field", e); }
+
+  let gangMembers = [];
+  if (row.gangMembers) {
+    gangMembers = row.gangMembers.split(';').map(m => m.trim()).filter(Boolean);
+  }
+
+  return {
+    id: row.id || 'CRM-2026-XXXX',
+    personalInfo: {
+      name: row.name || '',
+      aliasName: row.aliasName || '',
+      nickname: row.nickname || '',
+      fatherName: row.fatherName || '',
+      motherName: row.motherName || '',
+      gender: row.gender || 'Male',
+      dob: row.dob || '',
+      age: parseInt(row.age) || 0,
+      mobile: row.mobile || '',
+      aadhaar: row.aadhaar || '',
+      address: row.address || '',
+      permanentAddress: row.permanentAddress || '',
+      photograph: row.photograph || '',
+      village: row.village || ''
+    },
+    biometrics: {
+      fingerprints: row.fingerprints || '',
+      faceImage: row.faceImage || '',
+      identificationMarks: row.identificationMarks || '',
+      height: row.height || '',
+      weight: row.weight || '',
+      eyeColor: row.eyeColor || '',
+      bloodGroup: row.bloodGroup || ''
+    },
+    history: history,
+    gangInfo: {
+      gangName: row.gangName || '',
+      gangLeader: row.gangLeader || '',
+      gangMembers: gangMembers,
+      areaOfOperation: row.areaOfOperation || '',
+      networkMapping: []
+    },
+    surveillance: {
+      historySheetNumber: row.historySheetNumber || '',
+      surveillanceCategory: row.surveillanceCategory || '',
+      surveillanceNotes: row.surveillanceNotes || '',
+      beatOfficerRemarks: row.beatOfficerRemarks || '',
+      intelligenceInputs: row.intelligenceInputs || ''
+    },
+    propertyDetails: propertyDetails,
+    vehicleDetails: vehicleDetails,
+    intelReports: intelReports,
+    status: row.status || 'Active',
+    approvalStatus: row.approvalStatus || 'Approved',
+    submittedBy: row.submittedBy || 'SHO User',
+    verifiedBy: row.verifiedBy || 'CO Office',
+    approvedBy: row.approvedBy || 'SP Office',
+    lastUpdated: row.lastUpdated || new Date().toISOString()
+  };
+}
+
+function importDossiersFromCSVContent(text) {
+  try {
+    const rows = parseCSV(text);
+    if (!rows || rows.length === 0) throw new Error("Invalid CSV format or empty file");
+    const parsedDossiers = rows.map(_csvRowToDossier);
+    
+    _cache = parsedDossiers;
+    localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+    console.info(`[CDIMS Backend] Successfully imported ${_cache.length} records.`);
+    return { success: true, count: _cache.length };
+  } catch (error) {
+    console.error("[CDIMS Backend] CSV Import failed:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function loadDossiersFromCSV() {
+  try {
+    const response = await fetch('dossiers.csv');
+    if (!response.ok) throw new Error("Failed to fetch dossiers.csv");
+    const text = await response.text();
+    const rows = parseCSV(text);
+    const csvDossiers = rows.map(_csvRowToDossier);
+
+    // Merge with any newly added local user dossiers that are not in the CSV
+    const stored = localStorage.getItem('cdims_dossiers');
+    const localDossiers = stored ? JSON.parse(stored) : [];
+    const csvIds = new Set(csvDossiers.map(d => d.id));
+    
+    const merged = [...csvDossiers];
+    for (const d of localDossiers) {
+      if (!csvIds.has(d.id)) {
+        merged.push(d);
+      }
+    }
+    
+    _cache = merged;
+    localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+    console.info(`[CDIMS Backend] ✓ Loaded ${_cache.length} records from dossiers.csv.`);
+  } catch (error) {
+    console.error("[CDIMS Backend] Failed to load CSV dossiers, using localStorage fallback:", error);
     _loadLocalStorage();
   }
+}
+
+// ══════════════════════════════════════════════════════════
+//  INIT — Load data from CSV file with localStorage fallback
+// ══════════════════════════════════════════════════════════
+async function _doInit() {
+  await loadDossiersFromCSV();
+
+  // Load audit logs from localStorage
+  const storedLogs = localStorage.getItem('cdims_audit_logs');
+  _auditCache = storedLogs ? JSON.parse(storedLogs) : [
+    { timestamp: '2026-05-30T09:12:00Z', username: 'sho_hazratganj', role: 'Police Station User', action: 'Search', details: "Searched dossiers by alias 'Kaana'" },
+    { timestamp: '2026-05-30T10:15:00Z', username: 'sho_chowk', role: 'Police Station User', action: 'Create Dossier', details: 'Created pending dossier CRM-2026-0006 for Sanjay Pal' },
+    { timestamp: '2026-05-30T11:20:00Z', username: 'sp_crime_lucknow', role: 'District Nodal Officer', action: 'Approve Dossier', details: 'Approved dossier CRM-2026-0002 for Amit Mishra' },
+    { timestamp: '2026-05-30T14:45:00Z', username: 'phq_admin', role: 'State Administrator', action: 'Export Data', details: 'Exported statewide wanted criminal list to PDF' }
+  ];
+  if (!storedLogs) localStorage.setItem('cdims_audit_logs', JSON.stringify(_auditCache));
 }
 
 // Seed Supabase on first run
@@ -925,6 +1219,7 @@ window.addAuditLog = addAuditLog;
 window.calculateRiskScore = calculateRiskScore;
 window.runCrimePatternAnalysis = runCrimePatternAnalysis;
 window.generateStatistics = generateStatistics;
+window.importDossiersFromCSVContent = importDossiersFromCSVContent;
 
 // ──────────────────────────────────────────────────────────
 //  Auto-start loading data immediately on page load

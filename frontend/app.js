@@ -192,6 +192,16 @@ function navigateTo(view) {
     window.cdims_map = null;
   }
 
+  // Unmount React network graph if navigating away
+  if (view !== 'network' && typeof window.unmountReactNetworkGraph === 'function') {
+    try {
+      window.unmountReactNetworkGraph();
+      window.unmountReactNetworkGraph = null;
+    } catch(e) {
+      console.error("Error unmounting React network graph:", e);
+    }
+  }
+
   // Render the view
   const content = document.getElementById('page-content');
   const header = document.getElementById('page-title');
@@ -223,7 +233,11 @@ function navigateTo(view) {
       header.textContent = '🕸️ ' + t('network');
       headerSub.textContent = 'Criminal association graph — Gang links and relationships';
       content.innerHTML = renderNetworkPage();
-      setTimeout(() => renderNetworkGraph('network-container'), 100);
+      setTimeout(() => {
+        if (window.mountReactNetworkGraph) {
+          window.mountReactNetworkGraph('react-network-root');
+        }
+      }, 50);
       break;
     case 'map':
       header.textContent = '🗺️ ' + t('map');
@@ -321,11 +335,11 @@ function renderDashboard() {
           <!-- District-wise Cases -->
           <div class="chart-card-modern district-cases-card">
             <div class="chart-card-header">
-              <div class="chart-card-title">🏛️ District-wise Cases</div>
+              <div class="chart-card-title">${currentUser && currentUser.level === 1 ? '🏘️ Village-wise Cases' : '🏛️ District-wise Cases'}</div>
             </div>
             <div class="district-bars-modern" id="district-bars">
               <div class="map-lazy-placeholder">
-                <span class="spinner-icon">📊</span> Loading district metrics...
+                <span class="spinner-icon">📊</span> ${currentUser && currentUser.level === 1 ? 'Loading village metrics...' : 'Loading district metrics...'}
               </div>
             </div>
           </div>
@@ -700,9 +714,35 @@ function _openModal(id, bodyHTML) {
 window._openModal = _openModal;
 
 function initDistrictBars() {
-  const stats = generateStatistics();
   const distBar = document.getElementById('district-bars');
-  if (distBar) {
+  if (!distBar) return;
+
+  if (currentUser && currentUser.level === 1) {
+    const stationKey = currentUser.station ? currentUser.station.split(' PS')[0].trim() : '';
+    const villages = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
+    const dossiers = getDossiers();
+    
+    // Count occurrences per village
+    const villageData = villages.map(v => {
+      const count = dossiers.filter(d => d.personalInfo.village === v).length;
+      return { name: v, count: count };
+    });
+
+    // Sort by count descending for a clean analytics view
+    villageData.sort((a, b) => b.count - a.count);
+    
+    const maxCount = Math.max(...villageData.map(v => v.count), 1);
+    distBar.innerHTML = villageData.map(v => `
+      <div class="district-bar-item" style="cursor: pointer;" onclick="showSHOVillageDetailModal('${v.name.replace(/'/g, "\\'")}', '${stationKey.replace(/'/g, "\\'")}', 'dashboard')">
+        <div class="district-name">🏘️ ${v.name}</div>
+        <div class="district-bar-wrap">
+          <div class="district-bar-fill" style="width:${Math.round(v.count / maxCount * 100)}%"></div>
+        </div>
+        <div class="district-count">${v.count}</div>
+      </div>
+    `).join('');
+  } else {
+    const stats = generateStatistics();
     const maxCount = Math.max(...stats.districtComparison.map(d => d.count), 1);
     distBar.innerHTML = stats.districtComparison.map(d => `
       <div class="district-bar-item">
@@ -907,6 +947,8 @@ function renderDossierList() {
             <option value="Approved">Approved</option>
             <option value="Returned for Correction">Returned</option>
           </select>` : ''}
+          <input type="file" id="csv-import-input" accept=".csv" style="display: none;" onchange="handleCSVImport(event)" />
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('csv-import-input').click()">📥 Import CSV</button>
           ${currentUser.level === 1 ? `<button class="btn btn-primary btn-sm" onclick="openAddDossierModal()">➕ ${t('addDossier')}</button>` : ''}
         </div>
       </div>
@@ -923,6 +965,33 @@ function filterDossierTable(query) {
   const results = searchDossiers({ query, status, approvalStatus: approval });
   const container = document.getElementById('dossier-table-container');
   if (container) container.innerHTML = renderDossierTable(results);
+}
+
+function handleCSVImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    showToast('⏳ Parsing CSV data...', 'info');
+    
+    const result = window.importDossiersFromCSVContent(text);
+    
+    if (result.success) {
+      showToast(`✅ Successfully imported ${result.count} dossiers!`, 'success');
+      navigateTo('dossiers');
+      addAuditLog(currentUser.username, currentUser.role, 'Import CSV', `Imported ${result.count} records from CSV file: ${file.name}`);
+    } else {
+      showToast(`❌ Import failed: ${result.error}`, 'error');
+    }
+  };
+  
+  reader.onerror = function() {
+    showToast('❌ Error reading file!', 'error');
+  };
+  
+  reader.readAsText(file);
 }
 
 function renderDossierTable(dossiers) {
@@ -1316,36 +1385,7 @@ function runAdvancedSearch(query) {
 // ══════════════════════════════════════════════════════════
 function renderNetworkPage() {
   return `
-    <div style="margin-bottom:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <div style="display:flex; gap:10px; align-items:center;">
-        <span class="badge badge-wanted">🔴 Cat A: Drag nodes to explore</span>
-        <span class="badge badge-active">🟡 Cat B</span>
-        <span class="badge badge-approved">🟢 Cat C</span>
-        <span class="badge badge-jail">🔵 In Jail</span>
-        <span style="font-size:11px; color:var(--text-muted);">Click any node to open dossier</span>
-      </div>
-      <div style="margin-left:auto;">
-        <button class="btn btn-sm btn-secondary" onclick="renderNetworkGraph('network-container')">🔄 Refresh Graph</button>
-      </div>
-    </div>
-    <div id="network-container"></div>
-    <div style="margin-top:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px;">
-      <div class="stat-card" style="padding:14px;">
-        <div style="font-size:12px; color:var(--text-muted);">ACTIVE GANGS</div>
-        <div style="font-size:28px; font-weight:900; margin-top:4px;">2</div>
-        <div style="font-size:11px; color:var(--text-secondary);">D-102 (Raju Kaana), G-110 (Gujjar)</div>
-      </div>
-      <div class="stat-card" style="padding:14px;">
-        <div style="font-size:12px; color:var(--text-muted);">TOTAL LINKS MAPPED</div>
-        <div style="font-size:28px; font-weight:900; margin-top:4px;">5</div>
-        <div style="font-size:11px; color:var(--text-secondary);">Criminal association graph</div>
-      </div>
-      <div class="stat-card danger" style="padding:14px;">
-        <div style="font-size:12px; color:var(--text-muted);">HIGH-RISK NODES</div>
-        <div style="font-size:28px; font-weight:900; margin-top:4px;">2</div>
-        <div style="font-size:11px; color:var(--text-secondary);">Risk Score ≥ 70</div>
-      </div>
-    </div>
+    <div id="react-network-root" style="width: 100%; min-height: calc(100vh - 180px); display: flex; flex-direction: column;"></div>
   `;
 }
 
@@ -1677,8 +1717,7 @@ function printReportHTML(title, columns, rows, subtitle = '') {
       </div>
       <div class="print-header">
         <div class="logos">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_of_Uttar_Pradesh_Police.png" class="logo-img" alt="UP Police Logo" />
-          <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Seal_of_Uttar_Pradesh.svg" class="logo-img" alt="UP Govt Logo" />
+          <img src="Logo_of_Uttar_Pradesh_Police.png" class="logo-img" alt="UP Police Logo" />
         </div>
         <div class="header-text">
           <h1>UTTAR PRADESH POLICE HEADQUARTERS</h1>
@@ -2739,9 +2778,24 @@ window.openEditStatusInVillage = function(id) {
 //  LOGIN / LOGOUT
 // ══════════════════════════════════════════════════════════
 async function doLogin() {
-  const role = document.getElementById('login-role').value;
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
+
+  const roleEl = document.getElementById('login-role');
+  let role = 'l1';
+  if (roleEl) {
+    role = roleEl.value;
+  } else {
+    // Dynamically resolve role from username for offline login fallback
+    const uLower = username.toLowerCase();
+    if (uLower.startsWith('co_') || uLower.startsWith('sp_') || uLower.includes('nodal')) {
+      role = 'l2';
+    } else if (uLower.startsWith('phq_') || uLower.includes('admin') || uLower.includes('dg')) {
+      role = 'l3';
+    } else {
+      role = 'l1';
+    }
+  }
 
   if (!username || !password) {
     showToast('❌ Please enter credentials', 'error'); return;
@@ -2798,7 +2852,8 @@ async function doLogin() {
 }
 
 function quickLogin(role) {
-  document.getElementById('login-role').value = role;
+  const roleEl = document.getElementById('login-role');
+  if (roleEl) roleEl.value = role;
   const u = USERS[role];
   document.getElementById('login-username').value = u.username;
   document.getElementById('login-password').value = 'up@1234';
@@ -2898,6 +2953,24 @@ function printDossier() {
 document.getElementById('dossier-modal').addEventListener('click', function(e) {
   if (e.target === this) closeDossierModal();
 });
+
+// Open dossier by ID directly (from live ticker bar)
+function openDossierById(id) {
+  const dList = getDossiers();
+  const dossier = dList.find(d => d.id === id);
+  if (dossier) {
+    openDossierModal(dossier);
+  } else {
+    navigateTo('dossiers');
+    setTimeout(() => {
+      const searchInput = document.getElementById('dossier-search-input');
+      if (searchInput) {
+        searchInput.value = id;
+        filterDossierTable(id);
+      }
+    }, 150);
+  }
+}
 document.getElementById('add-dossier-modal').addEventListener('click', function(e) {
   if (e.target === this) closeAddDossierModal();
 });

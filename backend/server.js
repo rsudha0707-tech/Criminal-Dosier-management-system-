@@ -19,8 +19,18 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Serve static frontend files from current directory
-app.use(express.static(path.join(__dirname)));
+// Serve the dummy data CSV from backend/data/.csv if requested as dossiers.csv
+app.get('/dossiers.csv', (req, res) => {
+  const dataCsvPath = path.join(__dirname, 'data', '.csv');
+  if (fs.existsSync(dataCsvPath)) {
+    res.setHeader('Content-Type', 'text/csv');
+    return res.sendFile(dataCsvPath);
+  }
+  res.sendFile(path.join(__dirname, '../frontend', 'dossiers.csv'));
+});
+
+// Serve static frontend files from frontend directory
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // ── Supabase & DB Client Configuration ──
 let supabase = null;
@@ -63,21 +73,296 @@ let mockAuditLogs = [
   { timestamp: new Date().toISOString(), username: 'sho_hazratganj', role: 'Police Station User', action: 'System Init', details: 'Initialized CDIMS system local fallback' }
 ];
 
-// Load initial mock dossiers from dossiers.js mock database if available
-try {
-  const dossiersFilePath = path.join(__dirname, 'dossiers.js');
-  if (fs.existsSync(dossiersFilePath)) {
-    const fileContent = fs.readFileSync(dossiersFilePath, 'utf8');
-    // Extract INITIAL_DOSSIERS array using regex
-    const arrayMatch = fileContent.match(/const INITIAL_DOSSIERS = (\[[\s\S]*?\]);/);
-    if (arrayMatch && arrayMatch[1]) {
-      // Evaluate extracted string safely as JSON or basic JS array
-      mockDossiers = eval(arrayMatch[1]);
-      console.log(`📦 Loaded ${mockDossiers.length} initial mock dossiers from dossiers.js.`);
+// Helper functions to parse and map CSV dummy data in Node.js backend
+function parseCSV(text) {
+  if (!text) return [];
+  const firstLine = text.split(/\r?\n/)[0] || '';
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = tabCount > commaCount ? '\t' : ',';
+
+  const lines = [];
+  let row = [""];
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i+1];
+    if (c === '"') {
+      if (inQuotes && next === '"') {
+        row[row.length - 1] += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (c === delimiter && !inQuotes) {
+      row.push('');
+    } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      if (c === '\r' && next === '\n') { i++; }
+      lines.push(row);
+      row = [''];
+    } else {
+      row[row.length - 1] += c;
     }
   }
-} catch (e) {
-  console.log('⚠️ Could not load default dossiers into memory. Using empty array fallback.');
+  if (row.length > 1 || row[0] !== '') {
+    lines.push(row);
+  }
+  if (lines.length === 0) return [];
+
+  const headers = lines[0].map(h => h.trim());
+  const data = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.length < headers.length) continue;
+    const obj = {};
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = line[j] ? line[j].trim() : '';
+    }
+    data.push(obj);
+  }
+  return data;
+}
+
+function mapCsvRowToDossier(row) {
+  if (row.record_id || row.full_name) {
+    const ps = row.police_station || 'Hazratganj';
+    
+    let status = 'Active';
+    let category = 'Category B (Active Criminal)';
+    if (row.surveillance_status === 'Watchlist') {
+      status = 'Wanted';
+      category = 'Category A (Hardened Gangster)';
+    } else if (row.surveillance_status === 'Observed') {
+      status = 'Active';
+      category = 'Category B (Active Criminal)';
+    } else if (row.surveillance_status === 'Closed') {
+      status = 'Out on Bail';
+      category = 'Category C (Petty Associate)';
+    }
+
+    let propertyDetails = [];
+    if (row.property_details) {
+      propertyDetails = [{
+        type: 'Asset',
+        address: 'District ' + (row.district || 'Lucknow'),
+        estimatedValue: 'N/A',
+        status: row.property_details
+      }];
+    }
+
+    let vehicleDetails = [];
+    if (row.vehicle_details) {
+      vehicleDetails = [{
+        vehicleNumber: row.vehicle_details,
+        vehicleType: 'Vehicle',
+        registrationDetails: 'Registered'
+      }];
+    }
+
+    const age = parseInt(row.age) || 30;
+    const dob = new Date(new Date().getFullYear() - age, 0, 1).toISOString().split('T')[0];
+
+    // Normalize district ID
+    let distId = row.district ? row.district.toLowerCase().trim() : 'lucknow';
+    if (distId.includes('gautam') || distId.includes('noida')) {
+      distId = 'noida';
+    }
+
+    // Match village to first village of the station in master data
+    let village = 'Dehat';
+    const villagesMap = {
+      'Hazratganj': 'Madanpur',
+      'Phase-1': 'Sector-1 Basti',
+      'Kavi Nagar': 'Kavi Nagar Village',
+      'MG Road': 'MG Road Dehat',
+      'Civil Lines': 'Cantonment Dehat',
+      'Sector-20': 'Bisrakh',
+      'Kotwali': 'Kotwali Basti',
+      'Bhelupur': 'Khojwan'
+    };
+    if (villagesMap[ps]) {
+      village = villagesMap[ps];
+    }
+
+    const history = [{
+      firNumber: row.fir_reference || 'Pending',
+      crimeNumber: 'Pending',
+      policeStation: ps,
+      district: distId,
+      sections: row.crime_history || 'Under Investigation',
+      chargeSheetStatus: 'Under Investigation',
+      convictionDetails: 'Under Trial',
+      bailStatus: status === 'Out on Bail' ? 'Out on Bail' : 'Pending',
+      courtCaseDetails: 'Under Investigation'
+    }];
+
+    return {
+      id: row.record_id || 'CRM-2026-XXXX',
+      personalInfo: {
+        name: row.full_name || '',
+        aliasName: row.alias || '',
+        nickname: '',
+        fatherName: 'N/A',
+        motherName: 'N/A',
+        gender: 'Male',
+        dob: dob,
+        age: age,
+        mobile: 'N/A',
+        aadhaar: 'XXXX-XXXX-XXXX',
+        address: row.last_known_location || 'UP',
+        permanentAddress: 'UP',
+        photograph: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
+        village: village
+      },
+      biometrics: {
+        fingerprints: row.biometric_profile || 'SECURED',
+        faceImage: 'FACE-RECOGNIZED',
+        identificationMarks: 'None reported',
+        height: '175 cm',
+        weight: '75 kg',
+        eyeColor: 'Black',
+        bloodGroup: 'B+'
+      },
+      history: history,
+      gangInfo: {
+        gangName: row.gang_details || 'Independent',
+        gangLeader: 'N/A',
+        gangMembers: [],
+        areaOfOperation: row.district || 'Lucknow',
+        networkMapping: []
+      },
+      surveillance: {
+        historySheetNumber: 'HS-PENDING',
+        surveillanceCategory: category,
+        surveillanceNotes: row.last_known_location || 'Under surveillance',
+        beatOfficerRemarks: 'None',
+        intelligenceInputs: row.notice || 'None'
+      },
+      propertyDetails: propertyDetails,
+      vehicleDetails: vehicleDetails,
+      intelReports: [],
+      status: status,
+      approvalStatus: 'Approved',
+      submittedBy: 'SHO ' + ps,
+      verifiedBy: 'CO Office',
+      approvedBy: 'SP Office',
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  // Parse native JSON fields for server API fallback
+  let parsed = { ...row };
+  try {
+    parsed.history = row.history ? JSON.parse(row.history) : [];
+  } catch(e) { parsed.history = []; }
+
+  try {
+    parsed.propertyDetails = row.propertyDetails ? JSON.parse(row.propertyDetails) : [];
+  } catch(e) { parsed.propertyDetails = []; }
+
+  try {
+    parsed.vehicleDetails = row.vehicleDetails ? JSON.parse(row.vehicleDetails) : [];
+  } catch(e) { parsed.vehicleDetails = []; }
+
+  try {
+    parsed.intelReports = row.intelReports ? JSON.parse(row.intelReports) : [];
+  } catch(e) { parsed.intelReports = []; }
+
+  let gangMembers = [];
+  if (row.gangMembers) {
+    gangMembers = row.gangMembers.split(';').map(m => m.trim()).filter(Boolean);
+  }
+
+  parsed.personalInfo = {
+    name: row.name || '',
+    aliasName: row.aliasName || '',
+    nickname: row.nickname || '',
+    fatherName: row.fatherName || '',
+    motherName: row.motherName || '',
+    gender: row.gender || 'Male',
+    dob: row.dob || '',
+    age: parseInt(row.age) || 0,
+    mobile: row.mobile || '',
+    aadhaar: row.aadhaar || '',
+    address: row.address || '',
+    permanentAddress: row.permanentAddress || '',
+    photograph: row.photograph || '',
+    village: row.village || ''
+  };
+
+  parsed.biometrics = {
+    fingerprints: row.fingerprints || '',
+    faceImage: row.faceImage || '',
+    identificationMarks: row.identificationMarks || '',
+    height: row.height || '',
+    weight: row.weight || '',
+    eyeColor: row.eyeColor || '',
+    bloodGroup: row.bloodGroup || ''
+  };
+
+  let networkMapping = [];
+  try {
+    if (row.networkMapping) {
+      networkMapping = JSON.parse(row.networkMapping);
+    }
+  } catch(e) {}
+
+  parsed.gangInfo = {
+    gangName: row.gangName || '',
+    gangLeader: row.gangLeader || '',
+    gangMembers: gangMembers,
+    areaOfOperation: row.areaOfOperation || '',
+    networkMapping: networkMapping
+  };
+
+  parsed.surveillance = {
+    historySheetNumber: row.historySheetNumber || '',
+    surveillanceCategory: row.surveillanceCategory || '',
+    surveillanceNotes: row.surveillanceNotes || '',
+    beatOfficerRemarks: row.beatOfficerRemarks || '',
+    intelligenceInputs: row.intelligenceInputs || ''
+  };
+
+  parsed.status = row.status || 'Active';
+  parsed.approvalStatus = row.approvalStatus || 'Approved';
+  parsed.submittedBy = row.submittedBy || 'SHO User';
+  parsed.verifiedBy = row.verifiedBy || 'CO Office';
+  parsed.approvedBy = row.approvedBy || 'SP Office';
+  parsed.lastUpdated = row.lastUpdated || new Date().toISOString();
+
+  return parsed;
+}
+
+// Load initial mock dossiers
+let dossiersLoaded = false;
+const dataCsvPath = path.join(__dirname, 'data', '.csv');
+if (fs.existsSync(dataCsvPath)) {
+  try {
+    const fileContent = fs.readFileSync(dataCsvPath, 'utf8');
+    const rows = parseCSV(fileContent);
+    mockDossiers = rows.map(mapCsvRowToDossier);
+    dossiersLoaded = true;
+    console.log(`📦 Loaded ${mockDossiers.length} initial mock dossiers from backend/data/.csv.`);
+  } catch (err) {
+    console.error('❌ Failed to parse backend/data/.csv:', err.message);
+  }
+}
+
+if (!dossiersLoaded) {
+  try {
+    const dossiersFilePath = path.join(__dirname, '../frontend', 'dossiers.js');
+    if (fs.existsSync(dossiersFilePath)) {
+      const fileContent = fs.readFileSync(dossiersFilePath, 'utf8');
+      const arrayMatch = fileContent.match(/const INITIAL_DOSSIERS = (\[[\s\S]*?\]);/);
+      if (arrayMatch && arrayMatch[1]) {
+        mockDossiers = eval(arrayMatch[1]);
+        console.log(`📦 Loaded ${mockDossiers.length} initial mock dossiers from dossiers.js.`);
+      }
+    }
+  } catch (e) {
+    console.log('⚠️ Could not load default dossiers into memory. Using empty array fallback.');
+  }
 }
 
 // ── Express API Endpoints ──
@@ -505,7 +790,7 @@ app.post('/api/audit-logs', async (req, res) => {
 
 // Serve frontend SPA index for any non-API routes (fallback routing)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });
 
 // Start Server listening
