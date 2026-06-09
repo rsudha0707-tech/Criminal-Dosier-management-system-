@@ -233,11 +233,14 @@ function navigateTo(view) {
       header.textContent = '🕸️ ' + t('network');
       headerSub.textContent = 'Criminal association graph — Gang links and relationships';
       content.innerHTML = renderNetworkPage();
-      setTimeout(() => {
+      const tryMountReactGraph = () => {
         if (window.mountReactNetworkGraph) {
           window.mountReactNetworkGraph('react-network-root');
+        } else {
+          setTimeout(tryMountReactGraph, 50);
         }
-      }, 50);
+      };
+      tryMountReactGraph();
       break;
     case 'map':
       header.textContent = '🗺️ ' + t('map');
@@ -2805,31 +2808,38 @@ async function doLogin() {
     showToast('❌ Please enter credentials', 'error'); return;
   }
 
-  showToast('🔐 Verifying credentials against database...', 'info');
-
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && data.user) {
-        currentUser = data.user;
-        showToast(`✅ Authentication successful. Welcome, ${currentUser.name}!`, 'success');
-      }
-    } else {
-      const errData = await res.json();
-      showToast(`❌ Login failed: ${errData.message || 'Invalid credentials'}`, 'error');
-      return;
-    }
-  } catch (err) {
-    console.warn("⚠️ Server connection failed. Using offline local mock fallback for login.", err);
-    // Fallback to local mock data
+  const isGitHubPages = window.location.hostname.endsWith('github.io');
+  if (isGitHubPages) {
+    console.info("⚙️ Static Host Detected (GitHub Pages). Direct offline mock authentication active.");
     currentUser = { ...USERS[role], username };
-    showToast(`⚠️ Offline Mode: Logged in locally as ${currentUser.role}`, 'warning');
+    showToast(`⚠️ Offline Demo Mode: Logged in as ${currentUser.role}`, 'success');
+  } else {
+    showToast('🔐 Verifying credentials against database...', 'info');
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          currentUser = data.user;
+          showToast(`✅ Authentication successful. Welcome, ${currentUser.name}!`, 'success');
+        }
+      } else {
+        const errData = await res.json();
+        showToast(`❌ Login failed: ${errData.message || 'Invalid credentials'}`, 'error');
+        return;
+      }
+    } catch (err) {
+      console.warn("⚠️ Server connection failed. Using offline local mock fallback for login.", err);
+      // Fallback to local mock data
+      currentUser = { ...USERS[role], username };
+      showToast(`⚠️ Offline Mode: Logged in locally as ${currentUser.role}`, 'warning');
+    }
   }
 
   // Once authenticated, sync data cache from Supabase
@@ -2873,6 +2883,51 @@ async function generateOfficerCredentials() {
 
   if (!name) {
     showToast('❌ Officer Name is required!', 'error');
+    return;
+  }
+
+  const isGitHubPages = window.location.hostname.endsWith('github.io');
+  if (isGitHubPages) {
+    showToast('✅ Credential generated successfully (Offline Mode)!', 'success');
+    const uPrefix = roleType === 'l1' ? 'sho_' : (roleType === 'l2' ? 'co_' : 'phq_');
+    const usernameGenerated = uPrefix + name.toLowerCase().replace(/\s+/g, '_');
+    const creds = {
+      name,
+      role: roleType === 'l1' ? 'Police Station User' : (roleType === 'l2' ? 'District Nodal Officer' : 'State Administrator'),
+      station: station || (roleType === 'l1' ? 'Hazratganj PS' : (roleType === 'l2' ? 'CO Office' : 'PHQ')),
+      district,
+      username: usernameGenerated,
+      password: 'up@' + Math.floor(1000 + Math.random() * 9000)
+    };
+    
+    const resultDiv = document.getElementById('gen-credentials-result');
+    resultDiv.style.display = 'block';
+    resultDiv.style.cssText = `
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--gold-500);
+      background: rgba(238,185,2,0.06);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: left;
+    `;
+    resultDiv.innerHTML = `
+      <div style="font-weight:700; color:var(--gold-400); margin-bottom:4px;">🎫 GENERATED IDENTITY (OFFLINE DEMO):</div>
+      <div>👤 <strong>Name:</strong> ${creds.name}</div>
+      <div>👮 <strong>Role:</strong> ${creds.role}</div>
+      <div>📍 <strong>Office:</strong> ${creds.station} (${creds.district})</div>
+      <div style="margin-top:6px; border-top:1px dashed rgba(255,255,255,0.1); padding-top:6px;">
+        🔑 <strong style="color:var(--green-400);">Username:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${creds.username}</code><br/>
+        🔒 <strong style="color:var(--green-400);">Password:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${creds.password}</code>
+      </div>
+      <div style="font-size:9px; color:var(--text-muted); margin-top:6px;">
+        ⚠️ Offline Demo Mode. Credentials generated for this browser session only.
+      </div>
+    `;
+    
+    document.getElementById('gen-officer-name').value = '';
+    document.getElementById('gen-station').value = '';
     return;
   }
 
