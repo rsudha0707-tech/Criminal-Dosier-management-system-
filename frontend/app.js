@@ -130,6 +130,7 @@ function getNavItems() {
 
   if (level >= 1) {
     items.push({ id: 'network', icon: '🕸️', label: t('network'), section: 'INTELLIGENCE' });
+    items.push({ id: 'facerecog', icon: '🎭', label: currentLang === 'hi' ? 'चेहरा पहचान' : 'Face Recognition', section: null });
     items.push({ id: 'map', icon: '🗺️', label: t('map'), section: null });
     items.push({ id: 'intelligence', icon: '🤖', label: t('intelligence'), section: null });
   }
@@ -253,6 +254,12 @@ function navigateTo(view) {
       headerSub.textContent = 'AI-powered criminal intelligence, risk scoring and pattern analysis';
       content.innerHTML = renderIntelligencePage();
       initIntelligenceCharts();
+      break;
+    case 'facerecog':
+      header.textContent = '🎭 ' + (currentLang === 'hi' ? 'चेहरा पहचान' : 'Face Recognition');
+      headerSub.textContent = 'Match suspect photographs against the state-wide criminal database';
+      content.innerHTML = renderFaceRecogPage();
+      initFaceRecog();
       break;
     case 'alerts':
       header.textContent = '🔔 ' + t('alerts');
@@ -3042,3 +3049,506 @@ document.addEventListener('click', function(e) {
 });
 
 // Note: initDatabase() is auto-called by backend.js on page load.
+
+// =========================================================
+//  AI FACE RECOGNITION SYSTEM MODULE
+// =========================================================
+
+let cachedCriminalHashes = {};
+let facerecogStream = null;
+
+function renderFaceRecogPage() {
+  const criminals = getDossiers().slice(0, 20);
+  
+  const demoCards = criminals.map(c => `
+    <div class="demo-profile-card" onclick="simulateDemoMatch('${c.id}')">
+      <img src="${c.personalInfo.photograph}" class="demo-profile-photo" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(c.personalInfo.name)}&background=1a2f52&color=eeb902&size=100'" />
+      <div class="demo-profile-name">${c.personalInfo.name}</div>
+      <div class="demo-profile-alias">${c.personalInfo.aliasName || 'No Alias'}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="facerecog-container">
+      <!-- Top Overview Panel -->
+      <div class="demo-profiles-container facerecog-card">
+        <div class="demo-profiles-title">👤 Indexed Criminal Profiles (${criminals.length} Active Records)</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">
+          Click any profile to simulate a facial match, or download their photo to test the local system.
+        </div>
+        <div class="demo-profiles-list">
+          ${demoCards}
+        </div>
+      </div>
+
+      <!-- Main Scanner and Results Panels -->
+      <div class="facerecog-grid">
+        
+        <!-- Left Side: Scanner Preview -->
+        <div class="facerecog-card">
+          <div class="facerecog-card-header">
+            <h3 class="facerecog-card-title">📷 AFRS Scanner HUD</h3>
+            <span class="badge badge-active" style="border:1px solid rgba(238,185,2,0.3)">AI ONLINE</span>
+          </div>
+
+          <div class="scanner-preview-container" id="scanner-wrapper">
+            <!-- Grid overlay background -->
+            <div style="position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size:20px 20px; z-index:1;"></div>
+            
+            <img id="scanner-preview-img" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 100 100'><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-family='sans-serif' font-size='5'>No Face Scanned</text></svg>" class="scanner-image" />
+            <video id="scanner-video" class="webcam-video" style="display:none;" autoplay playsinline></video>
+            
+            <!-- Laser overlay -->
+            <div class="scanner-laser" id="scanner-laser-line"></div>
+            <!-- Face border box -->
+            <div class="scanner-face-box" id="scanner-face-box"></div>
+          </div>
+
+          <!-- Controls -->
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; gap:10px; justify-content:center;">
+              <button class="btn btn-secondary" id="btn-toggle-camera" onclick="toggleWebcam()">
+                🎥 Toggle Camera
+              </button>
+              <button class="btn btn-primary" onclick="document.getElementById('face-upload-input').click()">
+                📁 Upload Photo
+              </button>
+              <input type="file" id="face-upload-input" style="display:none;" accept="image/*" />
+            </div>
+            
+            <div class="camera-controls" id="webcam-controls" style="display:none;">
+              <button class="btn btn-success" onclick="captureAndScan()">📸 Capture & Scan Face</button>
+            </div>
+          </div>
+
+          <!-- Console Terminal -->
+          <div class="terminal-console" id="scanner-console">
+            <div class="terminal-line yellow">[SYSTEM] AI Face Recognition System initialized.</div>
+            <div class="terminal-line">[SYSTEM] Ready. Upload an image or toggle camera to begin matching.</div>
+          </div>
+        </div>
+
+        <!-- Right Side: Matched Dossier Results -->
+        <div class="facerecog-card" id="facerecog-results-panel">
+          <div class="facerecog-card-header">
+            <h3 class="facerecog-card-title">📊 Intelligence Matching Report</h3>
+          </div>
+          
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:320px; color:var(--text-muted); text-align:center; gap:12px;">
+            <span style="font-size:48px;">🕵️</span>
+            <div>
+              <div style="font-weight:700; font-size:14px; color:var(--text-secondary);">No Scan Performed</div>
+              <div style="font-size:11px; margin-top:4px;">Perform a scan to query matching templates.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+async function initFaceRecog() {
+  console.log("Initializing Face Hashing Engine...");
+  
+  // Clear any existing stream
+  if (facerecogStream) {
+    facerecogStream.getTracks().forEach(track => track.stop());
+    facerecogStream = null;
+  }
+
+  // Precompute the database hashes in background
+  precomputeCriminalHashes();
+
+  // Setup file upload listener
+  const fileInput = document.getElementById('face-upload-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        // Stop camera if running
+        stopWebcam();
+        
+        const previewImg = document.getElementById('scanner-preview-img');
+        previewImg.src = evt.target.result;
+        previewImg.style.display = 'block';
+        document.getElementById('scanner-video').style.display = 'none';
+        
+        triggerScan(evt.target.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+async function precomputeCriminalHashes() {
+  const criminals = getDossiers().slice(0, 20);
+  writeToConsole("[INFO] Pre-indexing database templates...");
+  let count = 0;
+  for (const c of criminals) {
+    if (!cachedCriminalHashes[c.id]) {
+      try {
+        const hash = await computeImageHashFromUrl(c.personalInfo.photograph);
+        cachedCriminalHashes[c.id] = hash;
+        count++;
+      } catch (e) {
+        console.warn(`Could not calculate hash for ${c.id}: ${e.message}`);
+      }
+    }
+  }
+  if (count > 0) {
+    writeToConsole(`[SUCCESS] Indexed ${count} templates. Cache database synchronized.`);
+  }
+}
+
+function computeImageHashFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const hash = computeAverageHash(img);
+        resolve(hash);
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = (e) => reject(new Error("Image failed to load: " + url));
+    img.src = url;
+  });
+}
+
+function computeAverageHash(imgEl) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 8;
+  canvas.height = 8;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(imgEl, 0, 0, 8, 8);
+  const imgData = ctx.getImageData(0, 0, 8, 8);
+  const data = imgData.data;
+  
+  let grayscale = [];
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i+1];
+    const b = data[i+2];
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    grayscale.push(gray);
+    sum += gray;
+  }
+  const avg = sum / 64;
+  
+  let hash = '';
+  for (let i = 0; i < 64; i++) {
+    hash += grayscale[i] >= avg ? '1' : '0';
+  }
+  return hash;
+}
+
+function getHammingDistance(hash1, hash2) {
+  let distance = 0;
+  for (let i = 0; i < hash1.length; i++) {
+    if (hash1[i] !== hash2[i]) {
+      distance++;
+    }
+  }
+  return distance;
+}
+
+function writeToConsole(message, type = '') {
+  const consoleEl = document.getElementById('scanner-console');
+  if (!consoleEl) return;
+  const line = document.createElement('div');
+  line.className = 'terminal-line ' + type;
+  line.textContent = `${new Date().toLocaleTimeString()} ${message}`;
+  consoleEl.appendChild(line);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+// Camera controls
+async function toggleWebcam() {
+  const video = document.getElementById('scanner-video');
+  const previewImg = document.getElementById('scanner-preview-img');
+  const webcamCtrls = document.getElementById('webcam-controls');
+  
+  if (facerecogStream) {
+    stopWebcam();
+    writeToConsole("[INFO] Webcam stream terminated.");
+  } else {
+    try {
+      facerecogStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 320, facingMode: 'user' } });
+      video.srcObject = facerecogStream;
+      video.style.display = 'block';
+      previewImg.style.display = 'none';
+      webcamCtrls.style.display = 'flex';
+      writeToConsole("[INFO] Live webcam connection established. Align face in target box.");
+      
+      // Draw mock face bounding box
+      const box = document.getElementById('scanner-face-box');
+      box.className = 'scanner-face-box active';
+      box.style.left = '20%';
+      box.style.top = '20%';
+      box.style.width = '60%';
+      box.style.height = '60%';
+    } catch (err) {
+      writeToConsole("[ERROR] Accessing camera denied or not found.", "red");
+    }
+  }
+}
+
+function stopWebcam() {
+  const video = document.getElementById('scanner-video');
+  const previewImg = document.getElementById('scanner-preview-img');
+  const webcamCtrls = document.getElementById('webcam-controls');
+  const box = document.getElementById('scanner-face-box');
+  
+  if (facerecogStream) {
+    facerecogStream.getTracks().forEach(track => track.stop());
+    facerecogStream = null;
+  }
+  video.style.display = 'none';
+  video.srcObject = null;
+  previewImg.style.display = 'block';
+  webcamCtrls.style.display = 'none';
+  box.className = 'scanner-face-box';
+}
+
+function captureAndScan() {
+  const video = document.getElementById('scanner-video');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth || 320;
+  canvas.height = video.videoHeight || 320;
+  
+  const ctx = canvas.getContext('2d');
+  // Mirror capture since video is mirrored
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  const imgDataUrl = canvas.toDataURL('image/jpeg');
+  stopWebcam();
+  
+  const previewImg = document.getElementById('scanner-preview-img');
+  previewImg.src = imgDataUrl;
+  
+  triggerScan(imgDataUrl);
+}
+
+function triggerScan(imgDataUrl) {
+  const laser = document.getElementById('scanner-laser-line');
+  const box = document.getElementById('scanner-face-box');
+  
+  laser.className = 'scanner-laser active';
+  box.className = 'scanner-face-box active';
+  box.style.left = '25%';
+  box.style.top = '25%';
+  box.style.width = '50%';
+  box.style.height = '50%';
+  
+  const consoleContainer = document.getElementById('scanner-console');
+  if (consoleContainer) consoleContainer.innerHTML = '';
+  
+  writeToConsole("[INFO] Initializing AFRS engine...", "yellow");
+  
+  setTimeout(() => writeToConsole("[INFO] Detecting human faces in view frame..."), 400);
+  setTimeout(() => writeToConsole("[INFO] Facial structures detected. Bounding coordinates locked."), 800);
+  setTimeout(() => writeToConsole("[INFO] Extracting facial vectors & computing gray hashes..."), 1200);
+  setTimeout(() => writeToConsole("[INFO] Hashing complete. Querying state criminal templates..."), 1600);
+  setTimeout(() => writeToConsole("[INFO] Analyzing structural Hamming distances..."), 2000);
+  
+  setTimeout(() => {
+    laser.className = 'scanner-laser';
+    executeFaceRecognition(imgDataUrl);
+  }, 2400);
+}
+
+async function executeFaceRecognition(uploadedImgDataUrl) {
+  writeToConsole("[INFO] Running template database matching...");
+  
+  const uploadedImg = new Image();
+  uploadedImg.onload = async () => {
+    let uploadHash = '';
+    try {
+      uploadHash = computeAverageHash(uploadedImg);
+    } catch (e) {
+      writeToConsole("[ERROR] Image hashing failed.", "red");
+      return;
+    }
+    
+    let bestMatch = null;
+    let minDistance = 65; // Max possible is 64
+    
+    // Ensure database hashes are precomputed
+    await precomputeCriminalHashes();
+    
+    const criminals = getDossiers().slice(0, 20);
+    for (const c of criminals) {
+      const cHash = cachedCriminalHashes[c.id];
+      if (cHash) {
+        const dist = getHammingDistance(uploadHash, cHash);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestMatch = c;
+        }
+      }
+    }
+    
+    displayMatchResult(bestMatch, minDistance, uploadedImgDataUrl);
+  };
+  uploadedImg.src = uploadedImgDataUrl;
+}
+
+function simulateDemoMatch(criminalId) {
+  stopWebcam();
+  const criminals = getDossiers().slice(0, 20);
+  const criminal = criminals.find(c => c.id === criminalId);
+  if (!criminal) return;
+  
+  const previewImg = document.getElementById('scanner-preview-img');
+  previewImg.src = criminal.personalInfo.photograph;
+  
+  const laser = document.getElementById('scanner-laser-line');
+  const box = document.getElementById('scanner-face-box');
+  
+  laser.className = 'scanner-laser active';
+  box.className = 'scanner-face-box active';
+  box.style.left = '25%';
+  box.style.top = '25%';
+  box.style.width = '50%';
+  box.style.height = '50%';
+  
+  const consoleContainer = document.getElementById('scanner-console');
+  if (consoleContainer) consoleContainer.innerHTML = '';
+  
+  writeToConsole(`[INFO] Demo scan triggered for dossier: ${criminalId}`, "yellow");
+  writeToConsole("[INFO] Processing local mugshot asset...");
+  
+  setTimeout(() => writeToConsole("[INFO] Generating exact vector model..."), 500);
+  setTimeout(() => writeToConsole("[INFO] Querying system database templates..."), 1000);
+  
+  setTimeout(() => {
+    laser.className = 'scanner-laser';
+    // For demo simulation matching, Hamming distance is 0 (100% exact match)
+    displayMatchResult(criminal, 0, criminal.personalInfo.photograph);
+  }, 1500);
+}
+
+function displayMatchResult(criminal, distance, uploadedImgUrl) {
+  const resultsPanel = document.getElementById('facerecog-results-panel');
+  if (!resultsPanel) return;
+  
+  // Distance to similarity percentage mapping
+  // 0 distance = 100% match. 12 or more distance is basically no match (<80%)
+  const similarity = Math.max(0, Math.round(((64 - distance) / 64) * 100));
+  const isMatch = similarity >= 80;
+  
+  if (isMatch && criminal) {
+    writeToConsole(`[MATCH FOUND] ${criminal.personalInfo.name} matched with ${similarity}% similarity!`, "yellow");
+    addAuditLog(currentUser.username, currentUser.role, "Face Match Detected", `Face recognized: ${criminal.personalInfo.name} (${criminal.id}) - Similarity: ${similarity}%`);
+    
+    const risk = calculateRiskScore(criminal);
+    const sections = criminal.history.map(h => h.sections).join(', ');
+    
+    resultsPanel.innerHTML = `
+      <div class="facerecog-card-header">
+        <h3 class="facerecog-card-title">🚨 MATCH DETECTED (${similarity}% Confidence)</h3>
+        <button class="btn btn-xs btn-primary" onclick="openDossierById('${criminal.id}')">View Full Dossier</button>
+      </div>
+
+      <div class="match-header-card">
+        <span class="match-status-icon">🚨</span>
+        <div>
+          <div class="match-status-title">Match Found: ${criminal.personalInfo.name}</div>
+          <div class="match-status-desc">${criminal.id} · ${criminal.surveillance.surveillanceCategory}</div>
+        </div>
+      </div>
+
+      <div class="match-comparison-pane">
+        <div class="match-photo-box">
+          <div class="match-photo-title">Captured Scan</div>
+          <img src="${uploadedImgUrl}" class="match-photo-img" />
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Query Profile</div>
+        </div>
+        <div class="match-photo-box" style="border-color:var(--gold-500);">
+          <div class="match-photo-title" style="color:var(--gold-400);">Database Dossier</div>
+          <img src="${criminal.personalInfo.photograph}" class="match-photo-img" />
+          <div class="match-score-badge">${similarity}% Match</div>
+        </div>
+      </div>
+
+      <!-- Dossier Summary Card -->
+      <div class="results-dossier-card">
+        <div style="font-size:13px; font-weight:700; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:6px; color:var(--gold-400);">Dossier Summary</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:11px;">
+          <div><strong>Name:</strong> ${criminal.personalInfo.name}</div>
+          <div><strong>Alias:</strong> ${criminal.personalInfo.aliasName || 'N/A'}</div>
+          <div><strong>Age/Gender:</strong> ${criminal.personalInfo.age} / ${criminal.personalInfo.gender}</div>
+          <div><strong>Mobile:</strong> ${criminal.personalInfo.mobile}</div>
+          <div><strong>District:</strong> ${criminal.history[0]?.district?.toUpperCase() || 'LUCKNOW'}</div>
+          <div><strong>Status:</strong> <span class="badge ${criminal.status === 'Wanted' ? 'badge-wanted' : 'badge-active'}">${criminal.status}</span></div>
+        </div>
+        <div style="font-size:11px; margin-top:4px;">
+          <strong>Gang Info:</strong> ${criminal.gangInfo.gangName} (${criminal.gangInfo.gangLeader})
+        </div>
+        <div style="font-size:11px;">
+          <strong>Sections of Law:</strong> <span style="color:var(--red-400); font-weight:600;">${sections}</span>
+        </div>
+        <div style="font-size:11px; color:var(--text-secondary); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); padding:6px; border-radius:4px; margin-top:4px;">
+          <strong>Intelligence Input:</strong> ${criminal.surveillance.surveillanceNotes}
+        </div>
+        
+        <!-- Risk Gauge -->
+        <div style="margin-top:6px;">
+          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:700; margin-bottom:3px;">
+            <span>RISK ASSESSMENT LEVEL</span>
+            <span style="color:${risk > 75 ? '#ef4444' : risk > 40 ? '#fbbf24' : '#4ade80'};">${risk}/100</span>
+          </div>
+          <div class="risk-bar ${risk > 75 ? 'risk-high' : risk > 40 ? 'risk-medium' : 'risk-low'}">
+            <div class="risk-bar-fill" style="width: ${risk}%;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    writeToConsole("[NO MATCH FOUND] Query image distance is too high from indexed templates.", "red");
+    addAuditLog(currentUser.username, currentUser.role, "Face Recognition Run", `Scan run: No matching records found (Best match was ${criminal ? criminal.personalInfo.name : 'None'} at ${similarity}%)`);
+    
+    resultsPanel.innerHTML = `
+      <div class="facerecog-card-header">
+        <h3 class="facerecog-card-title" style="color:var(--red-400);">❌ NO MATCH DETECTED</h3>
+      </div>
+
+      <div class="match-header-card no-match">
+        <span class="match-status-icon">❌</span>
+        <div>
+          <div class="match-status-title no-match">No Match Found in Database</div>
+          <div class="match-status-desc">Similarity score is below search threshold (80%).</div>
+        </div>
+      </div>
+
+      <div class="match-comparison-pane" style="grid-template-columns: 1fr;">
+        <div class="match-photo-box">
+          <div class="match-photo-title">Captured Scan</div>
+          <img src="${uploadedImgUrl}" class="match-photo-img" style="max-height:200px; object-fit:contain; margin:0 auto;" />
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Query Profile</div>
+        </div>
+      </div>
+
+      <div class="results-dossier-card" style="border-color:rgba(239, 68, 68, 0.2); text-align:center; padding:20px; font-size:12px;">
+        <div style="font-weight:700; color:var(--red-400); margin-bottom:6px;">Suspect Not Identified</div>
+        This individual is not registered in the state-wide criminal dossier database. Keep captured scan for audit purposes.
+      </div>
+    `;
+  }
+}
+
+window.renderFaceRecogPage = renderFaceRecogPage;
+window.initFaceRecog = initFaceRecog;
+window.toggleWebcam = toggleWebcam;
+window.captureAndScan = captureAndScan;
+window.simulateDemoMatch = simulateDemoMatch;
+

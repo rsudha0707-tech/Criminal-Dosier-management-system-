@@ -4,11 +4,11 @@
 //  Uttar Pradesh Police Headquarters
 // =========================================================
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
-const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { Pool } = require('pg');
 
@@ -87,7 +87,7 @@ function parseCSV(text) {
 
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
-    const next = text[i+1];
+    const next = text[i + 1];
     if (c === '"') {
       if (inQuotes && next === '"') {
         row[row.length - 1] += '"';
@@ -127,7 +127,7 @@ function parseCSV(text) {
 function mapCsvRowToDossier(row) {
   if (row.record_id || row.full_name) {
     const ps = row.police_station || 'Hazratganj';
-    
+
     let status = 'Active';
     let category = 'Category B (Active Criminal)';
     if (row.surveillance_status === 'Watchlist') {
@@ -255,19 +255,19 @@ function mapCsvRowToDossier(row) {
   let parsed = { ...row };
   try {
     parsed.history = row.history ? JSON.parse(row.history) : [];
-  } catch(e) { parsed.history = []; }
+  } catch (e) { parsed.history = []; }
 
   try {
     parsed.propertyDetails = row.propertyDetails ? JSON.parse(row.propertyDetails) : [];
-  } catch(e) { parsed.propertyDetails = []; }
+  } catch (e) { parsed.propertyDetails = []; }
 
   try {
     parsed.vehicleDetails = row.vehicleDetails ? JSON.parse(row.vehicleDetails) : [];
-  } catch(e) { parsed.vehicleDetails = []; }
+  } catch (e) { parsed.vehicleDetails = []; }
 
   try {
     parsed.intelReports = row.intelReports ? JSON.parse(row.intelReports) : [];
-  } catch(e) { parsed.intelReports = []; }
+  } catch (e) { parsed.intelReports = []; }
 
   let gangMembers = [];
   if (row.gangMembers) {
@@ -335,7 +335,7 @@ function mapCsvRowToDossier(row) {
     if (row.networkMapping) {
       networkMapping = JSON.parse(row.networkMapping);
     }
-  } catch(e) {}
+  } catch (e) { }
 
   parsed.gangInfo = {
     gangName: row.gangName || '',
@@ -424,7 +424,7 @@ app.post('/api/setup-db', async (req, res) => {
     }
 
     const sql = fs.readFileSync(schemaPath, 'utf8');
-    
+
     // Execute SQL script
     const client = await pool.connect();
     try {
@@ -566,9 +566,9 @@ app.post('/api/dossiers', async (req, res) => {
     const { data: countData, error: countErr } = await supabase
       .from('cdims_dossiers')
       .select('id');
-    
+
     if (countErr) throw countErr;
-    
+
     const nextNum = countData.length + 1;
     const idStr = String(nextNum).padStart(4, '0');
     const newId = `CRM-2026-${idStr}`;
