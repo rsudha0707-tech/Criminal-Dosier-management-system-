@@ -41,7 +41,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const dbUrl = process.env.DATABASE_URL;
 
-if (supabaseUrl && supabaseUrl !== 'https://your-project-id.supabase.co' && supabaseKey && supabaseKey !== 'your-anon-or-service-role-key') {
+if (supabaseUrl && supabaseUrl !== 'https://immwobsoziqqftaoinup.supabase.co' && supabaseKey && supabaseKey !== 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltbXdvYnNvemlxcWZ0YW9pbnVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4ODQ0NzksImV4cCI6MjA5MzQ2MDQ3OX0.utM5jrzWVajZTmRXbVH3sqc-pMDvQGt-z7dzkrWFaSw') {
   try {
     supabase = createClient(supabaseUrl, supabaseKey);
     useLocalMock = false;
@@ -438,7 +438,7 @@ app.post('/api/setup-db', async (req, res) => {
         const { data: existingDossiers, error: checkErr } = await supabase
           .from('cdims_dossiers')
           .select('id');
-        
+
         if (!checkErr && (!existingDossiers || existingDossiers.length === 0)) {
           const recordsToInsert = mockDossiers.map(d => ({
             id: d.id,
@@ -454,7 +454,7 @@ app.post('/api/setup-db', async (req, res) => {
             submitted_by: d.submittedBy || 'System Seed',
             last_updated: d.lastUpdated || new Date().toISOString()
           }));
-          
+
           if (recordsToInsert.length > 0) {
             const { error: insertErr } = await supabase
               .from('cdims_dossiers')

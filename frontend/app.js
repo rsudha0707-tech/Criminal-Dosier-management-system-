@@ -11,6 +11,13 @@ let currentView = 'dashboard';
 let charts = {};
 let notifPanelOpen = false;
 
+// Base API URL helper to connect to port 5001 if served elsewhere (e.g. Live Server or file://)
+function getApiUrl(path) {
+  const isLocalhost5001 = window.location.port === '5001';
+  const apiBase = isLocalhost5001 ? '' : 'http://localhost:5001';
+  return apiBase + path;
+}
+
 // Village selection state
 let selectedVillageDistrict = 'lucknow';
 let selectedVillageStation = 'Hazratganj';
@@ -2824,7 +2831,7 @@ async function doLogin() {
     showToast('🔐 Verifying credentials against database...', 'info');
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch(getApiUrl('/api/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -2931,7 +2938,7 @@ async function generateOfficerCredentials() {
   showToast('🔐 Generating dynamic credentials inside database...', 'info');
 
   try {
-    const res = await fetch('/api/users/generate', {
+    const res = await fetch(getApiUrl('/api/users/generate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
