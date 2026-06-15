@@ -1212,9 +1212,38 @@ function generateStatistics() {
   return stats;
 }
 
+// Direct database login validation using Supabase client (for static hosting environments)
+async function dbLogin(username, password) {
+  if (!_useSupabase || !_sb) {
+    return { success: false, message: 'Supabase client is not connected.' };
+  }
+  try {
+    const { data, error } = await _sb
+      .from('cdims_users')
+      .select('*')
+      .eq('username', username.toLowerCase())
+      .single();
+
+    if (error || !data) {
+      return { success: false, message: 'Invalid username. User not found.' };
+    }
+
+    if (data.password !== password) {
+      return { success: false, message: 'Invalid password.' };
+    }
+
+    const { password: _, ...userWithoutPassword } = data;
+    return { success: true, user: userWithoutPassword };
+  } catch (err) {
+    console.error('Login query failed:', err.message);
+    return { success: false, message: 'Query error: ' + err.message };
+  }
+}
+
 // ══════════════════════════════════════════════════════════
 //  WINDOW EXPORTS — identical API surface as old dossiers.js
 // ══════════════════════════════════════════════════════════
+window.dbLogin = dbLogin;
 window.MASTER_DATA = MASTER_DATA;
 window.INITIAL_DOSSIERS = INITIAL_DOSSIERS;
 window.VILLAGES_BY_STATION = VILLAGES_BY_STATION;

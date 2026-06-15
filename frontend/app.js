@@ -2824,9 +2824,20 @@ async function doLogin() {
 
   const isGitHubPages = window.location.hostname.endsWith('github.io');
   if (isGitHubPages) {
-    console.info("⚙️ Static Host Detected (GitHub Pages). Direct offline mock authentication active.");
-    currentUser = { ...USERS[role], username };
-    showToast(`⚠️ Offline Demo Mode: Logged in as ${currentUser.role}`, 'success');
+    showToast('🔐 Verifying credentials against live database...', 'info');
+    if (typeof window.dbLogin === 'function') {
+      const dbResult = await window.dbLogin(username, password);
+      if (dbResult.success && dbResult.user) {
+        currentUser = dbResult.user;
+        showToast(`✅ Authentication successful. Welcome, ${currentUser.name}!`, 'success');
+      } else {
+        showToast(`❌ Login failed: ${dbResult.message || 'Invalid credentials'}`, 'error');
+        return;
+      }
+    } else {
+      showToast('❌ Database connection not initialized.', 'error');
+      return;
+    }
   } else {
     showToast('🔐 Verifying credentials against database...', 'info');
 
