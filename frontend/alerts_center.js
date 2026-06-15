@@ -707,12 +707,12 @@
     }
   }
 
-  // Visibility Check (Shows only for level 2 & 3 admins)
+  // Visibility Check (Shows only for level 2 admins)
   function updateAlertCenterVisibility() {
     const user = getCurrentUser();
     const container = document.getElementById('sp-alert-center');
 
-    if (user && user.level >= 2) {
+    if (user && user.level === 2) {
       if (!container) {
         createAlertCenterDOM();
       } else {
