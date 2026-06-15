@@ -431,7 +431,44 @@ app.post('/api/setup-db', async (req, res) => {
       await client.query(sql);
       useLocalMock = false; // Once database is successfully setup, try to use Supabase if available
       console.log('✅ Supabase database created and seeded successfully using schema.sql.');
-      res.json({ success: true, message: 'Supabase database created, tables initialized and seeded successfully.' });
+
+      // Seed mock dossiers if database is connected
+      if (supabase) {
+        console.log('🚀 Seeding cdims_dossiers from local mock data into Supabase...');
+        const { data: existingDossiers, error: checkErr } = await supabase
+          .from('cdims_dossiers')
+          .select('id');
+        
+        if (!checkErr && (!existingDossiers || existingDossiers.length === 0)) {
+          const recordsToInsert = mockDossiers.map(d => ({
+            id: d.id,
+            personal_info: d.personalInfo,
+            biometrics: d.biometrics,
+            history: d.history,
+            gang_info: d.gangInfo,
+            surveillance: d.surveillance,
+            property_details: d.propertyDetails || [],
+            vehicle_details: d.vehicleDetails || [],
+            status: d.status,
+            approval_status: d.approvalStatus,
+            submitted_by: d.submittedBy || 'System Seed',
+            last_updated: d.lastUpdated || new Date().toISOString()
+          }));
+          
+          if (recordsToInsert.length > 0) {
+            const { error: insertErr } = await supabase
+              .from('cdims_dossiers')
+              .insert(recordsToInsert);
+            if (insertErr) {
+              console.error('⚠️ Failed to seed mock dossiers into Supabase:', insertErr.message);
+            } else {
+              console.log(`✅ Successfully seeded ${recordsToInsert.length} dossiers into Supabase cdims_dossiers.`);
+            }
+          }
+        }
+      }
+
+      res.json({ success: true, message: 'Supabase database created, cdims_users and cdims_dossiers initialized and seeded successfully.' });
     } finally {
       client.release();
     }

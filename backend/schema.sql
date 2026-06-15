@@ -150,10 +150,83 @@ CREATE POLICY "cdims_audit_open"
   USING (true) WITH CHECK (true);
 
 -- ──────────────────────────────────────────────────────────
---  VERIFICATION QUERY
---  Run this after setup to confirm tables exist:
---    SELECT table_name FROM information_schema.tables
---    WHERE table_schema = 'public';
+--  TABLE: cdims_users
+--  User credentials and system roles
 -- ──────────────────────────────────────────────────────────
--- Expected output: criminals | criminal_firs | audit_logs
--- Data is auto-seeded by backend.js on first login (no SQL inserts needed here).
+CREATE TABLE IF NOT EXISTS cdims_users (
+  username    TEXT        PRIMARY KEY,
+  password    TEXT        NOT NULL,
+  name        TEXT        NOT NULL,
+  role        TEXT        NOT NULL,
+  level       INTEGER     NOT NULL,
+  station     TEXT        NOT NULL,
+  district    TEXT        NOT NULL,
+  avatar      TEXT        NOT NULL,
+  permissions JSONB       DEFAULT '[]',
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE cdims_users IS 'CDIMS user account credentials and roles';
+
+-- ──────────────────────────────────────────────────────────
+--  TABLE: cdims_dossiers
+--  Criminal dossiers stored as structured JSONB columns
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cdims_dossiers (
+  id               TEXT        PRIMARY KEY,
+  personal_info    JSONB       NOT NULL,
+  biometrics       JSONB       NOT NULL,
+  history          JSONB       NOT NULL,
+  gang_info        JSONB       NOT NULL,
+  surveillance     JSONB       NOT NULL,
+  property_details JSONB       DEFAULT '[]',
+  vehicle_details  JSONB       DEFAULT '[]',
+  status           TEXT        DEFAULT 'Active',
+  approval_status  TEXT        DEFAULT 'Pending Verification',
+  submitted_by     TEXT        DEFAULT '',
+  verified_by      TEXT        DEFAULT 'Awaiting Verification',
+  approved_by      TEXT        DEFAULT 'Awaiting Approval',
+  last_updated     TIMESTAMPTZ DEFAULT NOW(),
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE cdims_dossiers IS 'Criminal dossiers records with nested JSONB objects';
+
+-- ──────────────────────────────────────────────────────────
+--  TABLE: cdims_audit_logs
+--  Audit log trail in the backend database
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cdims_audit_logs (
+  id         UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  username   TEXT        DEFAULT '',
+  role       TEXT        DEFAULT '',
+  action     TEXT        DEFAULT '',
+  details    TEXT        DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE cdims_audit_logs IS 'System audit trail logs';
+
+-- ──────────────────────────────────────────────────────────
+--  ROW LEVEL SECURITY & OPEN POLICIES FOR CDIMS_ TABLES
+-- ──────────────────────────────────────────────────────────
+ALTER TABLE cdims_users      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cdims_dossiers   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cdims_audit_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "cdims_users_open"      ON cdims_users;
+DROP POLICY IF EXISTS "cdims_dossiers_open"   ON cdims_dossiers;
+DROP POLICY IF EXISTS "cdims_audit_logs_open" ON cdims_audit_logs;
+
+CREATE POLICY "cdims_users_open"      ON cdims_users      FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "cdims_dossiers_open"   ON cdims_dossiers   FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "cdims_audit_logs_open" ON cdims_audit_logs FOR ALL USING (true) WITH CHECK (true);
+
+-- Seed default users
+INSERT INTO cdims_users (username, password, name, role, level, station, district, avatar, permissions)
+VALUES
+  ('sho_hazratganj', 'up@1234', 'SHO Rajiv Sharma', 'Police Station User', 1, 'Hazratganj PS, Lucknow', 'lucknow', 'RS', '["create", "update", "upload", "search"]'),
+  ('co_lucknow', 'up@1234', 'CO Prashant Mishra', 'District Nodal Officer', 2, 'CO Office, Lucknow', 'lucknow', 'PM', '["view_all_district", "verify", "approve", "return", "reports", "search"]'),
+  ('phq_admin', 'up@1234', 'DG Intelligence (PHQ)', 'State Administrator', 3, 'PHQ — UP Police Headquarters', 'all', 'PH', '["all"]')
+ON CONFLICT (username) DO NOTHING;
+

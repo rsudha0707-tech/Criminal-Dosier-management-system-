@@ -19,8 +19,8 @@
 // ══════════════════════════════════════════════════════════
 //  ⚙️  SUPABASE CONFIGURATION
 // ══════════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://immwobsoziqqftaoinup.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltbXdvYnNvemlxcWZ0YW9pbnVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4ODQ0NzksImV4cCI6MjA5MzQ2MDQ3OX0.utM5jrzWVajZTmRXbVH3sqc-pMDvQGt-z7dzkrWFaSw';
+const SUPABASE_URL = 'https://aryjmwhfrroqwsoyyhyz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyeWptd2hmcnJvcXdzb3l5aHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NjM3OTYsImV4cCI6MjA5NDQzOTc5Nn0.5EKWHSg0RTK5ORvMU59WdEeZQAQrmgT2mywdIN07n8g';
 // ══════════════════════════════════════════════════════════
 
 const CDIMS_DB_VERSION = 'v3-csv';
@@ -583,7 +583,7 @@ function parseCSV(text) {
 
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
-    const next = text[i+1];
+    const next = text[i + 1];
     if (c === '"') {
       if (inQuotes && next === '"') {
         row[row.length - 1] += '"';
@@ -624,7 +624,7 @@ function _csvRowToDossier(row) {
   // Support custom dummy data format: record_id, full_name, etc.
   if (row.record_id || row.full_name) {
     const ps = row.police_station || 'Hazratganj';
-    
+
     // Match village to station's villages or default
     let village = 'Dehat';
     if (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[ps] && window.VILLAGES_BY_STATION[ps].length > 0) {
@@ -747,22 +747,22 @@ function _csvRowToDossier(row) {
   let history = [];
   try {
     history = row.history ? JSON.parse(row.history) : [];
-  } catch(e) { console.error("Error parsing CSV history field", e); }
+  } catch (e) { console.error("Error parsing CSV history field", e); }
 
   let propertyDetails = [];
   try {
     propertyDetails = row.propertyDetails ? JSON.parse(row.propertyDetails) : [];
-  } catch(e) { console.error("Error parsing CSV propertyDetails field", e); }
+  } catch (e) { console.error("Error parsing CSV propertyDetails field", e); }
 
   let vehicleDetails = [];
   try {
     vehicleDetails = row.vehicleDetails ? JSON.parse(row.vehicleDetails) : [];
-  } catch(e) { console.error("Error parsing CSV vehicleDetails field", e); }
+  } catch (e) { console.error("Error parsing CSV vehicleDetails field", e); }
 
   let intelReports = [];
   try {
     intelReports = row.intelReports ? JSON.parse(row.intelReports) : [];
-  } catch(e) { console.error("Error parsing CSV intelReports field", e); }
+  } catch (e) { console.error("Error parsing CSV intelReports field", e); }
 
   let gangMembers = [];
   if (row.gangMembers) {
@@ -842,7 +842,7 @@ function importDossiersFromCSVContent(text) {
     const rows = parseCSV(text);
     if (!rows || rows.length === 0) throw new Error("Invalid CSV format or empty file");
     const parsedDossiers = rows.map(_csvRowToDossier);
-    
+
     _cache = parsedDossiers;
     localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
     console.info(`[CDIMS Backend] Successfully imported ${_cache.length} records.`);
@@ -865,14 +865,14 @@ async function loadDossiersFromCSV() {
     const stored = localStorage.getItem('cdims_dossiers');
     const localDossiers = stored ? JSON.parse(stored) : [];
     const csvIds = new Set(csvDossiers.map(d => d.id));
-    
+
     const merged = [...csvDossiers];
     for (const d of localDossiers) {
       if (!csvIds.has(d.id)) {
         merged.push(d);
       }
     }
-    
+
     _cache = merged;
     localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
     console.info(`[CDIMS Backend] ✓ Loaded ${_cache.length} records from dossiers.csv.`);
