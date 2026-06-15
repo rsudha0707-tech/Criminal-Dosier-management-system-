@@ -2842,10 +2842,9 @@ async function doLogin() {
         return;
       }
     } catch (err) {
-      console.warn("⚠️ Server connection failed. Using offline local mock fallback for login.", err);
-      // Fallback to local mock data
-      currentUser = { ...USERS[role], username };
-      showToast(`⚠️ Offline Mode: Logged in locally as ${currentUser.role}`, 'warning');
+      console.error("⚠️ Server connection failed:", err);
+      showToast("❌ Unable to connect to backend server. Database login required.", "error");
+      return;
     }
   }
 
@@ -2870,15 +2869,6 @@ async function doLogin() {
   addAuditLog(currentUser.username, currentUser.role, 'Login', `User logged in as ${currentUser.role}`);
   buildSidebar();
   navigateTo('dashboard');
-}
-
-function quickLogin(role) {
-  const roleEl = document.getElementById('login-role');
-  if (roleEl) roleEl.value = role;
-  const u = USERS[role];
-  document.getElementById('login-username').value = u.username;
-  document.getElementById('login-password').value = 'up@1234';
-  doLogin();
 }
 
 // dynamic credential generator for Police Station, SP Nodal and PHQ
