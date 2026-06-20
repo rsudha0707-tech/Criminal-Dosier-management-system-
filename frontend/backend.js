@@ -439,46 +439,20 @@ const INITIAL_DOSSIERS = [
 })();
 
 // ══════════════════════════════════════════════════════════
-//  DATA CONVERSION — Dossier JS objects ↔ Supabase rows
+//  DATA CONVERSION — Dossier JS objects ↔ Supabase cdims_dossiers rows
 // ══════════════════════════════════════════════════════════
-function _dossierToRow(d) {
+function _dossierToSupabaseRow(d) {
   return {
     id: d.id,
-    name: d.personalInfo.name,
-    alias_name: d.personalInfo.aliasName || '',
-    nickname: d.personalInfo.nickname || '',
-    father_name: d.personalInfo.fatherName || '',
-    mother_name: d.personalInfo.motherName || '',
-    gender: d.personalInfo.gender || 'Male',
-    dob: d.personalInfo.dob || '',
-    age: d.personalInfo.age || 0,
-    mobile: d.personalInfo.mobile || '',
-    aadhaar: d.personalInfo.aadhaar || '',
-    address: d.personalInfo.address || '',
-    permanent_address: d.personalInfo.permanentAddress || '',
-    photograph: d.personalInfo.photograph || '',
-    village: d.personalInfo.village || '',
-    blood_group: d.biometrics.bloodGroup || '',
-    height: d.biometrics.height || '',
-    weight: d.biometrics.weight || '',
-    eye_color: d.biometrics.eyeColor || '',
-    fingerprints: d.biometrics.fingerprints || '',
-    face_image: d.biometrics.faceImage || '',
-    identification_marks: d.biometrics.identificationMarks || '',
-    gang_name: d.gangInfo.gangName || '',
-    gang_leader: d.gangInfo.gangLeader || '',
-    gang_members: d.gangInfo.gangMembers || [],
-    area_of_operation: d.gangInfo.areaOfOperation || '',
-    network_mapping: d.gangInfo.networkMapping || [],
-    history_sheet_number: d.surveillance.historySheetNumber || '',
-    surveillance_category: d.surveillance.surveillanceCategory || '',
-    surveillance_notes: d.surveillance.surveillanceNotes || '',
-    beat_officer_remarks: d.surveillance.beatOfficerRemarks || '',
-    intelligence_inputs: d.surveillance.intelligenceInputs || '',
+    personal_info: d.personalInfo,
+    biometrics: d.biometrics,
+    history: d.history || [],
+    gang_info: d.gangInfo,
+    surveillance: d.surveillance,
     property_details: d.propertyDetails || [],
     vehicle_details: d.vehicleDetails || [],
-    status: d.status || 'Active',
-    approval_status: d.approvalStatus || 'Pending Verification',
+    status: d.status,
+    approval_status: d.approvalStatus,
     submitted_by: d.submittedBy || '',
     verified_by: d.verifiedBy || '',
     approved_by: d.approvedBy || '',
@@ -486,82 +460,23 @@ function _dossierToRow(d) {
   };
 }
 
-function _rowToDossier(row, firs) {
+function _supabaseRowToDossier(row) {
+  if (!row) return null;
   return {
     id: row.id,
-    personalInfo: {
-      name: row.name,
-      aliasName: row.alias_name,
-      nickname: row.nickname,
-      fatherName: row.father_name,
-      motherName: row.mother_name,
-      gender: row.gender,
-      dob: row.dob,
-      age: row.age,
-      mobile: row.mobile,
-      aadhaar: row.aadhaar,
-      address: row.address,
-      permanentAddress: row.permanent_address,
-      photograph: row.photograph,
-      village: row.village
-    },
-    biometrics: {
-      bloodGroup: row.blood_group,
-      height: row.height,
-      weight: row.weight,
-      eyeColor: row.eye_color,
-      fingerprints: row.fingerprints,
-      faceImage: row.face_image,
-      identificationMarks: row.identification_marks
-    },
-    history: (firs || []).map(f => ({
-      firNumber: f.fir_number,
-      crimeNumber: f.crime_number,
-      policeStation: f.police_station,
-      district: f.district,
-      sections: f.sections,
-      chargeSheetStatus: f.charge_sheet_status,
-      convictionDetails: f.conviction_details,
-      bailStatus: f.bail_status,
-      courtCaseDetails: f.court_case_details
-    })),
-    gangInfo: {
-      gangName: row.gang_name,
-      gangLeader: row.gang_leader,
-      gangMembers: row.gang_members || [],
-      areaOfOperation: row.area_of_operation,
-      networkMapping: row.network_mapping || []
-    },
-    surveillance: {
-      historySheetNumber: row.history_sheet_number,
-      surveillanceCategory: row.surveillance_category,
-      surveillanceNotes: row.surveillance_notes,
-      beatOfficerRemarks: row.beat_officer_remarks,
-      intelligenceInputs: row.intelligence_inputs
-    },
+    personalInfo: row.personal_info || {},
+    biometrics: row.biometrics || {},
+    history: row.history || [],
+    gangInfo: row.gang_info || {},
+    surveillance: row.surveillance || {},
     propertyDetails: row.property_details || [],
     vehicleDetails: row.vehicle_details || [],
     status: row.status,
     approvalStatus: row.approval_status,
-    submittedBy: row.submitted_by,
-    verifiedBy: row.verified_by,
-    approvedBy: row.approved_by,
+    submittedBy: row.submitted_by || '',
+    verifiedBy: row.verified_by || '',
+    approvedBy: row.approved_by || '',
     lastUpdated: row.last_updated
-  };
-}
-
-function _firToRow(fir, criminalId) {
-  return {
-    criminal_id: criminalId,
-    fir_number: fir.firNumber || '',
-    crime_number: fir.crimeNumber || '',
-    police_station: fir.policeStation || '',
-    district: fir.district || '',
-    sections: fir.sections || '',
-    charge_sheet_status: fir.chargeSheetStatus || '',
-    conviction_details: fir.convictionDetails || '',
-    bail_status: fir.bailStatus || '',
-    court_case_details: fir.courtCaseDetails || ''
   };
 }
 
@@ -845,6 +760,7 @@ function importDossiersFromCSVContent(text) {
 
     _cache = parsedDossiers;
     localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+    syncVillagesFromDossiers();
     console.info(`[CDIMS Backend] Successfully imported ${_cache.length} records.`);
     return { success: true, count: _cache.length };
   } catch (error) {
@@ -883,12 +799,9 @@ async function loadDossiersFromCSV() {
 }
 
 // ══════════════════════════════════════════════════════════
-//  INIT — Load data from CSV file with localStorage fallback
+//  INIT — Load data from Supabase/CSV with localStorage fallback
 // ══════════════════════════════════════════════════════════
-async function _doInit() {
-  await loadDossiersFromCSV();
-
-  // Load audit logs from localStorage
+function _loadLocalAuditLogs() {
   const storedLogs = localStorage.getItem('cdims_audit_logs');
   _auditCache = storedLogs ? JSON.parse(storedLogs) : [
     { timestamp: '2026-05-30T09:12:00Z', username: 'sho_hazratganj', role: 'Police Station User', action: 'Search', details: "Searched dossiers by alias 'Kaana'" },
@@ -899,17 +812,69 @@ async function _doInit() {
   if (!storedLogs) localStorage.setItem('cdims_audit_logs', JSON.stringify(_auditCache));
 }
 
+async function _doInit() {
+  if (_useSupabase && _sb) {
+    try {
+      console.info('[CDIMS Backend] Querying Supabase cdims_dossiers table...');
+      const { data, error } = await _sb.from('cdims_dossiers').select('*');
+      if (error) {
+        console.error('[CDIMS Backend] Failed to fetch cdims_dossiers from Supabase:', error.message);
+        await loadDossiersFromCSV();
+        _loadLocalAuditLogs();
+      } else if (!data || data.length === 0) {
+        console.warn('[CDIMS Backend] Supabase cdims_dossiers is empty. Auto-seeding initial data...');
+        await _seedSupabase();
+        return; // Seed logic re-triggers initDatabase
+      } else {
+        _cache = data.map(_supabaseRowToDossier);
+        localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+        console.info(`[CDIMS Backend] ✓ Loaded ${_cache.length} records from Supabase cdims_dossiers.`);
+
+        // Fetch audit logs
+        const { data: logs, error: logsError } = await _sb
+          .from('cdims_audit_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(200);
+
+        if (logsError) {
+          console.warn('[CDIMS Backend] Failed to fetch cdims_audit_logs from Supabase:', logsError.message);
+          _loadLocalAuditLogs();
+        } else {
+          _auditCache = (logs || []).map(l => ({
+            timestamp: l.created_at || new Date().toISOString(),
+            username: l.username || 'unknown',
+            role: l.role || 'Unknown',
+            action: l.action || 'Unknown',
+            details: l.details || ''
+          }));
+          localStorage.setItem('cdims_audit_logs', JSON.stringify(_auditCache));
+          console.info(`[CDIMS Backend] ✓ Loaded ${_auditCache.length} audit logs from Supabase.`);
+        }
+      }
+    } catch (e) {
+      console.error('[CDIMS Backend] Exception during Supabase initialization:', e.message);
+      await loadDossiersFromCSV();
+      _loadLocalAuditLogs();
+    }
+  } else {
+    await loadDossiersFromCSV();
+    _loadLocalAuditLogs();
+  }
+  syncVillagesFromDossiers();
+}
+
 // Seed Supabase on first run
 async function _seedSupabase() {
-  console.info('[CDIMS Backend] Seeding Supabase with initial data...');
+  console.info('[CDIMS Backend] Seeding Supabase with initial cdims_dossiers data...');
   for (const d of INITIAL_DOSSIERS) {
-    await _sb.from('criminals').insert(_dossierToRow(d));
-    if (d.history && d.history.length) {
-      await _sb.from('criminal_firs').insert(d.history.map(f => _firToRow(f, d.id)));
+    const { error } = await _sb.from('cdims_dossiers').insert(_dossierToSupabaseRow(d));
+    if (error) {
+      console.error(`[CDIMS Backend] Seeding error for ${d.id}:`, error.message);
     }
   }
   // Seed audit logs
-  await _sb.from('audit_logs').insert([
+  await _sb.from('cdims_audit_logs').insert([
     { username: 'sho_hazratganj', role: 'Police Station User', action: 'Search', details: "Searched dossiers by alias 'Kaana'" },
     { username: 'sho_chowk', role: 'Police Station User', action: 'Create Dossier', details: 'Created pending dossier CRM-2026-0006 for Sanjay Pal' },
     { username: 'sp_crime_lucknow', role: 'District Nodal Officer', action: 'Approve Dossier', details: 'Approved dossier CRM-2026-0002 for Amit Mishra' },
@@ -932,14 +897,7 @@ function _loadLocalStorage() {
   _cache = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(INITIAL_DOSSIERS));
   if (!stored) localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
 
-  const storedLogs = localStorage.getItem('cdims_audit_logs');
-  _auditCache = storedLogs ? JSON.parse(storedLogs) : [
-    { timestamp: '2026-05-30T09:12:00Z', username: 'sho_hazratganj', role: 'Police Station User', action: 'Search', details: "Searched dossiers by alias 'Kaana'" },
-    { timestamp: '2026-05-30T10:15:00Z', username: 'sho_chowk', role: 'Police Station User', action: 'Create Dossier', details: 'Created pending dossier CRM-2026-0006 for Sanjay Pal' },
-    { timestamp: '2026-05-30T11:20:00Z', username: 'sp_crime_lucknow', role: 'District Nodal Officer', action: 'Approve Dossier', details: 'Approved dossier CRM-2026-0002 for Amit Mishra' },
-    { timestamp: '2026-05-30T14:45:00Z', username: 'phq_admin', role: 'State Administrator', action: 'Export Data', details: 'Exported statewide wanted criminal list to PDF' }
-  ];
-  if (!storedLogs) localStorage.setItem('cdims_audit_logs', JSON.stringify(_auditCache));
+  _loadLocalAuditLogs();
   console.info(`[CDIMS Backend] ✓ Loaded ${_cache.length} records from localStorage.`);
 }
 
@@ -958,6 +916,22 @@ async function initDatabase() {
 // ══════════════════════════════════════════════════════════
 
 function getDossiers() {
+  if (!window.currentUser) {
+    return [..._cache];
+  }
+  const user = window.currentUser;
+  if (user.level === 3) {
+    return [..._cache];
+  } else if (user.level === 2) {
+    return _cache.filter(d => d.history && d.history.some(h => h.district === user.district));
+  } else if (user.level === 1) {
+    const stationKey = user.station ? user.station.split(' PS')[0].trim().toLowerCase() : '';
+    return _cache.filter(d => {
+      const matchStation = (d.history && d.history.some(h => h.policeStation && h.policeStation.toLowerCase() === stationKey)) ||
+        (d.submittedBy && d.submittedBy.toLowerCase().includes(stationKey));
+      return matchStation;
+    });
+  }
   return [..._cache];
 }
 
@@ -966,6 +940,7 @@ function saveDossiers(dossiers) {
   if (!_useSupabase) {
     localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
   }
+  syncVillagesFromDossiers();
 }
 
 async function addDossier(dossier, user) {
@@ -982,13 +957,13 @@ async function addDossier(dossier, user) {
   dossier.lastUpdated = new Date().toISOString();
 
   _cache.push(dossier);
+  syncVillagesFromDossiers();
 
-  if (_useSupabase) {
+  if (_useSupabase && _sb) {
     try {
-      await _sb.from('criminals').insert(_dossierToRow(dossier));
-      if (dossier.history && dossier.history.length) {
-        await _sb.from('criminal_firs').insert(dossier.history.map(f => _firToRow(f, dossier.id)));
-      }
+      const { error } = await _sb.from('cdims_dossiers').insert(_dossierToSupabaseRow(dossier));
+      if (error) throw error;
+      localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
     } catch (e) {
       console.error('[CDIMS] addDossier Supabase error:', e.message);
     }
@@ -1011,15 +986,13 @@ async function updateDossier(dossier, user) {
 
   dossier.lastUpdated = new Date().toISOString();
   _cache[idx] = dossier;
+  syncVillagesFromDossiers();
 
-  if (_useSupabase) {
+  if (_useSupabase && _sb) {
     try {
-      await _sb.from('criminals').update(_dossierToRow(dossier)).eq('id', dossier.id);
-      // Refresh FIRs: delete old, insert fresh
-      await _sb.from('criminal_firs').delete().eq('criminal_id', dossier.id);
-      if (dossier.history && dossier.history.length) {
-        await _sb.from('criminal_firs').insert(dossier.history.map(f => _firToRow(f, dossier.id)));
-      }
+      const { error } = await _sb.from('cdims_dossiers').update(_dossierToSupabaseRow(dossier)).eq('id', dossier.id);
+      if (error) throw error;
+      localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
     } catch (e) {
       console.error('[CDIMS] updateDossier Supabase error:', e.message);
     }
@@ -1046,14 +1019,16 @@ async function approveDossier(id, user) {
   _cache[idx].approvedBy = (user && user.name) || 'Approving Officer';
   _cache[idx].lastUpdated = now;
 
-  if (_useSupabase) {
+  if (_useSupabase && _sb) {
     try {
-      await _sb.from('criminals').update({
+      const { error } = await _sb.from('cdims_dossiers').update({
         approval_status: 'Approved',
         verified_by: _cache[idx].verifiedBy,
         approved_by: _cache[idx].approvedBy,
         last_updated: now
       }).eq('id', id);
+      if (error) throw error;
+      localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
     } catch (e) {
       console.error('[CDIMS] approveDossier Supabase error:', e.message);
     }
@@ -1074,13 +1049,15 @@ async function returnDossierForCorrection(id, remarks, user) {
   _cache[idx].surveillance.intelligenceInputs = `Correction required: ${remarks}`;
   _cache[idx].lastUpdated = now;
 
-  if (_useSupabase) {
+  if (_useSupabase && _sb) {
     try {
-      await _sb.from('criminals').update({
+      const { error } = await _sb.from('cdims_dossiers').update({
         approval_status: 'Returned for Correction',
-        intelligence_inputs: `Correction required: ${remarks}`,
+        surveillance: _cache[idx].surveillance,
         last_updated: now
       }).eq('id', id);
+      if (error) throw error;
+      localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
     } catch (e) {
       console.error('[CDIMS] returnDossier Supabase error:', e.message);
     }
@@ -1110,10 +1087,11 @@ async function addAuditLog(username, role, action, details) {
   _auditCache.unshift(entry);
   if (_auditCache.length > 200) _auditCache.pop();
 
-  if (_useSupabase) {
+  if (_useSupabase && _sb) {
     // Fire-and-forget async
-    _sb.from('audit_logs').insert({ username: entry.username, role: entry.role, action, details })
+    _sb.from('cdims_audit_logs').insert({ username: entry.username, role: entry.role, action, details })
       .then(({ error }) => { if (error) console.warn('[CDIMS] Audit log failed:', error.message); });
+    localStorage.setItem('cdims_audit_logs', JSON.stringify(_auditCache));
   } else {
     localStorage.setItem('cdims_audit_logs', JSON.stringify(_auditCache));
   }
@@ -1123,13 +1101,32 @@ async function addAuditLog(username, role, action, details) {
 //  SEARCH  (synchronous from in-memory cache)
 // ══════════════════════════════════════════════════════════
 function searchDossiers(filters) {
-  return _cache.filter(d => {
+  return getDossiers().filter(d => {
     if (filters.district && filters.district !== 'all') {
       const inDistrict = d.history.some(h => h.district === filters.district);
       if (!inDistrict) return false;
     }
     if (filters.status && filters.status !== 'all' && d.status !== filters.status) return false;
     if (filters.approvalStatus && filters.approvalStatus !== 'all' && d.approvalStatus !== filters.approvalStatus) return false;
+    
+    // Special Filters from Dashboard
+    if (filters.special && filters.special !== 'all') {
+      if (filters.special === 'active') {
+        if (d.status !== 'Active' && d.status !== 'Wanted') return false;
+      } else if (filters.special === 'history_sheeter') {
+        if (!d.surveillance.historySheetNumber || d.surveillance.historySheetNumber.toLowerCase().includes('pending') || d.surveillance.historySheetNumber.toLowerCase().includes('n/a')) return false;
+      } else if (filters.special === 'gangster') {
+        if (!d.gangInfo.gangName || d.gangInfo.gangName.includes('Independent')) return false;
+      }
+    }
+    
+    // Filter by Police Station Scope (Single vs Multiple)
+    if (filters.stationScope && filters.stationScope !== 'all') {
+      const uniqueStations = new Set(d.history.map(h => (h.policeStation || '').trim().toLowerCase()));
+      if (filters.stationScope === 'multiple' && uniqueStations.size <= 1) return false;
+      if (filters.stationScope === 'single' && uniqueStations.size > 1) return false;
+    }
+
     if (filters.query) {
       const q = filters.query.toLowerCase().trim();
       const t = [
@@ -1186,14 +1183,14 @@ function runCrimePatternAnalysis(dossier) {
 }
 
 function generateStatistics() {
-  const dossiers = _cache;
+  const dossiers = getDossiers();
   const allStations = MASTER_DATA.districts.reduce((arr, d) =>
     arr.concat(d.circles.reduce((a2, c) => a2.concat(c.stations), [])), []);
 
   const stats = {
     totalCriminals: dossiers.length,
     activeCriminals: dossiers.filter(d => d.status === 'Active' || d.status === 'Wanted').length,
-    historySheeters: dossiers.filter(d => d.surveillance.historySheetNumber).length,
+    historySheeters: dossiers.filter(d => d.surveillance.historySheetNumber && !d.surveillance.historySheetNumber.toLowerCase().includes('pending') && !d.surveillance.historySheetNumber.toLowerCase().includes('n/a')).length,
     gangsters: dossiers.filter(d => d.gangInfo.gangName && !d.gangInfo.gangName.includes('Independent')).length,
     wantedCriminals: dossiers.filter(d => d.status === 'Wanted').length,
     districtCount: MASTER_DATA.districts.length,
@@ -1202,7 +1199,14 @@ function generateStatistics() {
 
   const distCounts = {};
   MASTER_DATA.districts.forEach(d => { distCounts[d.id] = 0; });
-  dossiers.forEach(d => d.history.forEach(h => { if (distCounts[h.district] !== undefined) distCounts[h.district]++; }));
+  dossiers.forEach(d => {
+    if (d.history) {
+      const uniqueDists = new Set(d.history.map(h => h.district).filter(Boolean));
+      uniqueDists.forEach(dist => {
+        if (distCounts[dist] !== undefined) distCounts[dist]++;
+      });
+    }
+  });
   stats.districtComparison = MASTER_DATA.districts.map(d => ({ name: d.name, count: distCounts[d.id] || 0 }));
 
   const cats = { 'Wanted': 0, 'Active': 0, 'In Jail': 0, 'Out on Bail': 0 };
@@ -1240,6 +1244,94 @@ async function dbLogin(username, password) {
   }
 }
 
+function syncVillagesFromDossiers() {
+  const dossiers = _cache;
+  const dynamicVillages = {};
+
+  // Initialize with empty arrays for all known stations so they are at least present
+  if (MASTER_DATA && MASTER_DATA.districts) {
+    MASTER_DATA.districts.forEach(dist => {
+      dist.circles.forEach(circle => {
+        circle.stations.forEach(station => {
+          dynamicVillages[station] = new Set();
+        });
+      });
+    });
+  }
+
+  // Populate from dossiers
+  dossiers.forEach(d => {
+    if (!d || !d.personalInfo) return;
+    const village = d.personalInfo.village;
+    if (!village) return;
+
+    // Find all stations this dossier belongs to
+    const stations = new Set();
+    if (d.submittedBy) {
+      const match = d.submittedBy.match(/SHO\s+([A-Za-z0-9\-\s]+)/i);
+      if (match) {
+        stations.add(match[1].trim());
+      } else {
+        // Fallback: check if any known station name is in submittedBy
+        const subLower = d.submittedBy.toLowerCase();
+        Object.keys(dynamicVillages).forEach(st => {
+          if (subLower.includes(st.toLowerCase())) {
+            stations.add(st);
+          }
+        });
+      }
+    }
+    if (d.history && Array.isArray(d.history)) {
+      d.history.forEach(h => {
+        if (h.policeStation) {
+          stations.add(h.policeStation.trim());
+        }
+      });
+    }
+
+    stations.forEach(stationName => {
+      const matchedKey = Object.keys(dynamicVillages).find(
+        k => k.toLowerCase() === stationName.toLowerCase()
+      );
+      if (matchedKey) {
+        dynamicVillages[matchedKey].add(village);
+      } else {
+        if (!dynamicVillages[stationName]) {
+          dynamicVillages[stationName] = new Set();
+        }
+        dynamicVillages[stationName].add(village);
+      }
+    });
+  });
+
+  // Convert Sets to Arrays and store back in window.VILLAGES_BY_STATION
+  const finalVillages = {};
+  Object.keys(dynamicVillages).forEach(station => {
+    finalVillages[station] = Array.from(dynamicVillages[station]);
+  });
+
+  window.VILLAGES_BY_STATION = finalVillages;
+  console.info("[CDIMS] Dynamic villages synced from database dossiers:", window.VILLAGES_BY_STATION);
+}
+
+async function syncDatabase() {
+  if (_useSupabase && _sb) {
+    try {
+      console.info('[CDIMS Backend] Re-fetching dossiers from Supabase...');
+      const { data, error } = await _sb.from('cdims_dossiers').select('*');
+      if (error) throw error;
+      if (data) {
+        _cache = data.map(_supabaseRowToDossier);
+        localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+        syncVillagesFromDossiers();
+        console.info(`[CDIMS Backend] ✓ Re-synced ${_cache.length} records from Supabase.`);
+      }
+    } catch (e) {
+      console.error('[CDIMS Backend] Exception during Supabase re-fetch:', e.message);
+    }
+  }
+}
+
 // ══════════════════════════════════════════════════════════
 //  WINDOW EXPORTS — identical API surface as old dossiers.js
 // ══════════════════════════════════════════════════════════
@@ -1247,6 +1339,8 @@ window.dbLogin = dbLogin;
 window.MASTER_DATA = MASTER_DATA;
 window.INITIAL_DOSSIERS = INITIAL_DOSSIERS;
 window.VILLAGES_BY_STATION = VILLAGES_BY_STATION;
+window.syncVillagesFromDossiers = syncVillagesFromDossiers;
+window.syncDatabase = syncDatabase;
 window.CDIMS_DB_VERSION = CDIMS_DB_VERSION;
 
 window.initDatabase = initDatabase;

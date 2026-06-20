@@ -318,10 +318,319 @@ function buildNetworkFromCSV(dossiers) {
   return { allNodes, allLinks };
 }
 
+// Pre-seeded Ravi Kumar mock data matching the reference image layout and districts
+const RAVI_KUMAR_HUD_DATA = {
+  id: 'ravi_kumar',
+  personalInfo: {
+    name: 'Ravi Kumar',
+    age: 32,
+    aliasName: 'R. Kumar | RK',
+    photograph: 'criminals/crm_0012.jpg',
+    mobile: '9XXXXXXXX4'
+  },
+  districts: [
+    { id: 'saharanpur', name: 'Saharanpur', x: 28, y: 15 },
+    { id: 'lucknow', name: 'Lucknow', x: 48, y: 40 },
+    { id: 'prayagraj', name: 'Prayagraj', x: 68, y: 62 }
+  ],
+  path: ['saharanpur', 'lucknow', 'prayagraj'],
+  cards: [
+    {
+      id: 'suspect',
+      type: 'suspect',
+      label: 'Suspect',
+      title: 'RAVI KUMAR',
+      meta: 'AGE: 32 | ALIASES: R. KUMAR | RK',
+      left: 41,
+      top: 6,
+      connectTo: { x: 48, y: 40 },
+      photo: 'criminals/crm_0012.jpg'
+    },
+    {
+      id: 'vehicle1',
+      type: 'vehicle',
+      label: 'Vehicle',
+      title: 'UP32 KT 7684',
+      meta: 'WHITE SWIFT DZIRE\nFIRST SEEN: 12 MAY 2024',
+      left: 7,
+      top: 15,
+      connectTo: { x: 28, y: 15 },
+      photo: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=150'
+    },
+    {
+      id: 'co_accused',
+      type: 'co_accused',
+      label: 'Co-Accused',
+      title: 'AMIT YADAV',
+      meta: 'AGE: 28\nKNOWN TO RAVI KUMAR SINCE 2019',
+      left: 7,
+      top: 45,
+      connectTo: { x: 48, y: 40 }
+    },
+    {
+      id: 'mobile1',
+      type: 'mobile',
+      label: 'Mobile Number',
+      title: '8XXXXXXXX1',
+      meta: 'OPERATOR: AIRTEL\nLOCATION HISTORY: 2 DISTRICTS',
+      left: 7,
+      top: 68,
+      connectTo: { x: 48, y: 40 }
+    },
+    {
+      id: 'case1',
+      type: 'case',
+      label: 'Case File',
+      title: 'FIR NO. 215/2024',
+      meta: 'U/S 379/411 IPC\nPS: ASHIANA, LUCKNOW\nDATE: 12 MAY 2024',
+      status: 'ACTIVE',
+      statusClass: 'badge-active',
+      left: 38,
+      top: 55,
+      connectTo: { x: 48, y: 40 }
+    },
+    {
+      id: 'mobile2',
+      type: 'mobile',
+      label: 'Mobile Number',
+      title: '9XXXXXXXX4',
+      meta: 'OPERATOR: JIO\nLOCATION HISTORY: 3 DISTRICTS',
+      left: 75,
+      top: 10,
+      connectTo: { x: 48, y: 40 }
+    },
+    {
+      id: 'case2',
+      type: 'case',
+      label: 'Case File',
+      title: 'FIR NO. 478/2023',
+      meta: 'U/S 392/397 IPC\nPS: CIVIL LINES, PRAYAGRAJ\nDATE: 03 SEP 2023',
+      status: 'CHARGESHEETED',
+      statusClass: 'badge-active',
+      left: 75,
+      top: 38,
+      connectTo: { x: 68, y: 62 }
+    },
+    {
+      id: 'vehicle2',
+      type: 'vehicle',
+      label: 'Vehicle',
+      title: 'UP70 GT 1212',
+      meta: 'MAHINDRA SCORPIO\nRECOVERED: 04 SEP 2023',
+      left: 69,
+      top: 68,
+      connectTo: { x: 68, y: 62 },
+      photo: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=150'
+    }
+  ],
+  aiQuery: 'Has this suspect appeared in previous cases?',
+  aiResponse: {
+    title: 'Yes. 3 matched cases found.',
+    cases: [
+      'FIR No. 478/2023 — U/S 392/397 IPC — Prayagraj — Chargesheeted',
+      'FIR No. 215/2024 — U/S 379/411 IPC — Lucknow — Active',
+      'FIR No. 102/2022 — U/S 457/380 IPC — Kanpur — Closed'
+    ]
+  }
+};
+
+// Generates suspect list for dropdown
+const getHudSuspectsList = (dossiers) => {
+  const list = [
+    { id: 'ravi_kumar', name: 'Ravi Kumar (Reference Suspect)' }
+  ];
+  dossiers.forEach(d => {
+    list.push({ id: d.id, name: `${d.personalInfo.name} (${d.personalInfo.aliasName || d.id})` });
+  });
+  return list;
+};
+
+// Compiles dynamic HUD data for any select suspect in dossiers database
+const getHudData = (suspectId, dossiers) => {
+  if (suspectId === 'ravi_kumar') {
+    return RAVI_KUMAR_HUD_DATA;
+  }
+  const d = dossiers.find(x => x.id === suspectId);
+  if (!d) return RAVI_KUMAR_HUD_DATA;
+
+  const activeDistricts = [];
+  const districtCoords = {
+    lucknow: { name: 'Lucknow', x: 48, y: 40 },
+    noida: { name: 'Noida', x: 14, y: 35 },
+    varanasi: { name: 'Varanasi', x: 80, y: 50 },
+    prayagraj: { name: 'Prayagraj', x: 68, y: 62 },
+    ghaziabad: { name: 'Ghaziabad', x: 18, y: 30 },
+    kanpur: { name: 'Kanpur', x: 42, y: 48 }
+  };
+
+  const compiledDistSet = new Set();
+  if (d.history) {
+    d.history.forEach(h => {
+      if (h.district) {
+        compiledDistSet.add(h.district.toLowerCase().trim());
+      }
+    });
+  }
+
+  const dists = Array.from(compiledDistSet).map(distKey => {
+    const coords = districtCoords[distKey] || { name: distKey.toUpperCase(), x: 50, y: 50 };
+    return { id: distKey, ...coords };
+  });
+
+  if (dists.length === 0) {
+    dists.push({ id: 'lucknow', name: 'Lucknow', x: 48, y: 40 });
+  }
+
+  const primaryDist = dists[0];
+  const secondaryDist = dists[1] || dists[0];
+
+  const cards = [];
+
+  // 1. Suspect Card
+  cards.push({
+    id: 'suspect',
+    type: 'suspect',
+    label: 'Suspect',
+    title: d.personalInfo.name.toUpperCase(),
+    meta: `AGE: ${d.personalInfo.age || 35} | ALIASES: ${d.personalInfo.aliasName || 'NONE'}`,
+    left: 41,
+    top: 6,
+    connectTo: { x: primaryDist.x, y: primaryDist.y },
+    photo: d.personalInfo.photograph || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150'
+  });
+
+  // 2. Case File Cards
+  if (d.history) {
+    d.history.slice(0, 2).forEach((h, idx) => {
+      const isPrimary = idx === 0;
+      const distCoords = districtCoords[h.district.toLowerCase()] || primaryDist;
+      cards.push({
+        id: `case_${idx}`,
+        type: 'case',
+        label: 'Case File',
+        title: h.firNumber || 'PENDING FIR',
+        meta: `${h.sections}\nPS: ${h.policeStation.toUpperCase()}\nDATE: ${h.date || 'RECENT'}`,
+        status: d.status.toUpperCase(),
+        statusClass: d.status === 'Wanted' ? 'badge-wanted' : 'badge-active',
+        badge: d.status.toUpperCase(),
+        left: isPrimary ? 38 : 75,
+        top: isPrimary ? 55 : 38,
+        connectTo: { x: distCoords.x, y: distCoords.y }
+      });
+    });
+  }
+
+  // 3. Vehicle Cards
+  if (d.vehicleDetails && d.vehicleDetails.length > 0) {
+    d.vehicleDetails.slice(0, 2).forEach((v, idx) => {
+      const isPrimary = idx === 0;
+      const targetDist = isPrimary ? primaryDist : secondaryDist;
+      cards.push({
+        id: `vehicle_${idx}`,
+        type: 'vehicle',
+        label: 'Vehicle',
+        title: v.vehicleNumber,
+        meta: `${v.vehicleType}\nREGISTRATION: ${v.registrationDetails}`,
+        left: isPrimary ? 7 : 69,
+        top: isPrimary ? 15 : 68,
+        connectTo: { x: targetDist.x, y: targetDist.y },
+        photo: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=150'
+      });
+    });
+  }
+
+  // 4. Co-Accused Card
+  if (d.gangInfo && d.gangInfo.gangMembers && d.gangInfo.gangMembers.length > 0) {
+    cards.push({
+      id: 'co_accused',
+      type: 'co_accused',
+      label: 'Co-Accused',
+      title: d.gangInfo.gangMembers[0].toUpperCase(),
+      meta: `ASSOCIATE IN ${d.gangInfo.gangName || 'SYNDICATE'}`,
+      left: 7,
+      top: 45,
+      connectTo: { x: primaryDist.x, y: primaryDist.y }
+    });
+  }
+
+  // 5. Mobile Cards
+  cards.push({
+    id: 'mobile1',
+    type: 'mobile',
+    label: 'Mobile Number',
+    title: d.personalInfo.mobile && d.personalInfo.mobile !== 'N/A' ? d.personalInfo.mobile.substring(0, 4) + 'XXXXXX' : '9XXXXXXXX5',
+    meta: `OPERATOR: JIO / AIRTEL\nSTATUS: ACTIVE SURVEILLANCE`,
+    left: 7,
+    top: 68,
+    connectTo: { x: primaryDist.x, y: primaryDist.y }
+  });
+
+  if (dists.length > 1) {
+    cards.push({
+      id: 'mobile2',
+      type: 'mobile',
+      label: 'Mobile Number',
+      title: '9XXXXXXXX8',
+      meta: 'CELL TOWER TRIANGULATED\nLOCATION PINGS LOGGED',
+      left: 75,
+      top: 10,
+      connectTo: { x: secondaryDist.x, y: secondaryDist.y }
+    });
+  }
+
+  const path = dists.map(di => di.id);
+  const casesMatches = d.history ? d.history.map((h, i) => `${i + 1}. ${h.firNumber || 'FIR'} — ${h.sections || 'IPC'} — ${h.district.toUpperCase()} — ${h.chargeSheetStatus}`) : [];
+
+  return {
+    id: d.id,
+    personalInfo: {
+      name: d.personalInfo.name,
+      age: d.personalInfo.age,
+      aliasName: d.personalInfo.aliasName || d.id,
+      photograph: d.personalInfo.photograph,
+      mobile: d.personalInfo.mobile
+    },
+    districts: dists,
+    path,
+    cards,
+    aiQuery: `Has this suspect appeared in previous cases?`,
+    aiResponse: {
+      title: `Yes. ${d.history ? d.history.length : 0} matched cases found.`,
+      cases: casesMatches
+    }
+  };
+};
+
 // React Main Component
+const districtCenters = {
+  lucknow: { name: 'Lucknow', lat: 26.8467, lng: 80.9462 },
+  varanasi: { name: 'Varanasi', lat: 25.3176, lng: 82.9739 },
+  prayagraj: { name: 'Prayagraj', lat: 25.4358, lng: 81.8463 },
+  noida: { name: 'Noida (GB Nagar)', lat: 28.5355, lng: 77.3910 },
+  ghaziabad: { name: 'Ghaziabad', lat: 28.6692, lng: 77.4538 },
+  agra: { name: 'Agra', lat: 27.1767, lng: 78.0081 },
+  kanpur: { name: 'Kanpur', lat: 26.4499, lng: 80.3319 }
+};
+
 function ReactNetworkGraph() {
+  const [viewMode, setViewMode] = useState('hud'); // Default to Cross-District HUD view
+  const [hudSuspectId, setHudSuspectId] = useState('ravi_kumar');
   const [nodes, setNodes] = useState(INITIAL_SYNTHETIC_NODES);
   const [links, setLinks] = useState(INITIAL_SYNTHETIC_LINKS);
+  
+  const [liveTrackingEnabled, setLiveTrackingEnabled] = useState(true);
+  const [telemetryOffsets, setTelemetryOffsets] = useState({ lat: 0, lng: 0, lastPing: Date.now() });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTelemetryOffsets(prev => ({
+        lat: (Math.random() - 0.5) * 0.0006,
+        lng: (Math.random() - 0.5) * 0.0006,
+        lastPing: Date.now()
+      }));
+    }, 1500);
+    return () => clearInterval(timer);
+  }, []);
   
   const [selectedNodeId, setSelectedNodeId] = useState('center');
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
@@ -607,6 +916,260 @@ function ReactNetworkGraph() {
     overflow: 'hidden'
   };
 
+  const dossiersList = useMemo(() => {
+    return typeof window.getDossiers === 'function' ? window.getDossiers() : [];
+  }, [nodes]);
+
+  const selectedDossier = useMemo(() => {
+    return dossiersList.find(d => d.id === selectedNodeId);
+  }, [selectedNodeId, dossiersList]);
+
+  const gangMembers = useMemo(() => {
+    if (selectedNode.type !== 'group') return [];
+    return dossiersList.filter(d => d.gangInfo && d.gangInfo.gangName === selectedNode.name);
+  }, [selectedNode, dossiersList]);
+
+  const hudData = useMemo(() => {
+    return getHudData(hudSuspectId, dossiersList);
+  }, [hudSuspectId, dossiersList]);
+
+  const hudSuspects = useMemo(() => {
+    return getHudSuspectsList(dossiersList);
+  }, [dossiersList]);
+
+  if (viewMode === 'hud') {
+    return (
+      <div className="hud-container" style={{ minHeight: isExpanded ? 'calc(100vh - 100px)' : '750px' }}>
+        <div className="hud-grid-bg"></div>
+        <div className="hud-header">
+          <div className="hud-title-wrap">
+            <h1>Hours to Minutes. Records</h1>
+            <p>Priority 1 — Zero Tolerance Towards Crime & Criminals</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', zIndex: 20 }}>
+            {/* View Selector Toggle */}
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', padding: '2px', borderRadius: '6px', marginRight: '8px' }}>
+              <button 
+                type="button"
+                className={`hud-toggle-btn ${viewMode === 'syndicate' ? 'active' : ''}`}
+                onClick={() => setViewMode('syndicate')}
+                style={{ border: 'none', background: viewMode === 'syndicate' ? 'var(--gold-500)' : 'transparent', color: viewMode === 'syndicate' ? 'var(--navy-950)' : 'var(--text-muted)', fontSize: '11px', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                📊 Syndicate Graph
+              </button>
+              <button 
+                type="button"
+                className={`hud-toggle-btn ${viewMode === 'hud' ? 'active' : ''}`}
+                onClick={() => setViewMode('hud')}
+                style={{ border: 'none', background: viewMode === 'hud' ? 'var(--gold-500)' : 'transparent', color: viewMode === 'hud' ? 'var(--navy-950)' : 'var(--text-muted)', fontSize: '11px', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                🎯 Cross-District HUD
+              </button>
+            </div>
+            {/* Suspect Selector */}
+            <select
+              value={hudSuspectId}
+              onChange={(e) => setHudSuspectId(e.target.value)}
+              style={{
+                background: '#061329',
+                border: '1px solid var(--gold-500)',
+                color: '#f8fafc',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                outline: 'none',
+                cursor: 'pointer',
+                fontWeight: '700',
+                boxShadow: '0 0 10px rgba(229,184,57,0.15)',
+                marginRight: '8px'
+              }}
+            >
+              {hudSuspects.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'var(--text-primary)',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                fontWeight: '700'
+              }}
+            >
+              {isExpanded ? 'Collapse' : '🖥️ Expand'}
+            </button>
+          </div>
+        </div>
+        <div className="hud-body">
+          <svg className="hud-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="map-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#081e3f" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#020914" stopOpacity="0.8" />
+              </linearGradient>
+              <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="0.8" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+              <marker id="hud-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 2 L 8 5 L 0 8 z" fill="#ff9d00" />
+              </marker>
+            </defs>
+            <path
+              d="M 12 40 C 14 28, 25 20, 32 22 C 40 24, 42 32, 48 35 C 54 38, 62 35, 68 40 C 74 45, 82 46, 86 52 C 88 56, 84 62, 80 65 C 75 68, 70 70, 62 68 C 56 66, 52 72, 46 70 C 40 68, 35 62, 28 63 C 23 64, 19 58, 17 53 C 15 48, 10 45, 12 40 Z"
+              fill="url(#map-grad)"
+              stroke="rgba(0, 240, 255, 0.2)"
+              strokeWidth="0.8"
+              filter="url(#neon-glow)"
+            />
+            <text x="4" y="9" fill="rgba(255,255,255,0.4)" fontSize="1.8" fontWeight="800" letterSpacing="0.2">UTTAR PRADESH</text>
+            <text x="4" y="12.5" fill="rgba(0, 240, 255, 0.6)" fontSize="2.4" fontWeight="900" letterSpacing="0.2" filter="url(#neon-glow)">CROSS-DISTRICT ANALYSIS</text>
+            {hudData.districts.length > 1 && hudData.path.map((distId, idx) => {
+              if (idx === 0) return null;
+              const prevDist = hudData.districts.find(d => d.id === hudData.path[idx - 1]);
+              const currDist = hudData.districts.find(d => d.id === distId);
+              if (!prevDist || !currDist) return null;
+              const midX = (prevDist.x + currDist.x) / 2;
+              const midY = (prevDist.y + currDist.y) / 2;
+              const ctrlX = midX;
+              const ctrlY = midY - 6;
+              return (
+                <path
+                  key={`path-${idx}`}
+                  d={`M ${prevDist.x} ${prevDist.y} Q ${ctrlX} ${ctrlY} ${currDist.x} ${currDist.y}`}
+                  fill="none"
+                  stroke="#ff9d00"
+                  strokeWidth="0.8"
+                  className="hud-animated-arrow-path"
+                  markerEnd="url(#hud-arrow)"
+                />
+              );
+            })}
+            {hudData.districts.map(dist => (
+              <g key={dist.id} transform={`translate(${dist.x}, ${dist.y})`}>
+                <circle r="6" className="hud-pulse-ring" fill="none" stroke="#00f0ff" strokeWidth="0.5" />
+                <circle r="10" className="hud-pulse-ring-slow" fill="none" stroke="#22c55e" strokeWidth="0.3" />
+                <circle r="2" fill="#22c55e" />
+                <circle r="1" fill="#ffffff" />
+                <text y="5.2" textAnchor="middle" fill="#00f0ff" fontSize="1.8" fontWeight="800" style={{ letterSpacing: '0.1px', textShadow: '0 0 2px #000' }}>
+                  {dist.name.toUpperCase()}
+                </text>
+              </g>
+            ))}
+            {hudData.cards.map(card => {
+              const startX = card.connectTo.x;
+              const startY = card.connectTo.y;
+              const endX = card.left + (card.type === 'suspect' ? 10 : 8);
+              const endY = card.top + 4;
+              return (
+                <g key={`connector-${card.id}`}>
+                  <line
+                    x1={startX}
+                    y1={startY}
+                    x2={endX}
+                    y2={endY}
+                    stroke="rgba(0, 240, 255, 0.4)"
+                    strokeWidth="0.2"
+                    strokeDasharray="1,1"
+                  />
+                  <circle cx={endX} cy={endY} r="0.5" fill="#00f0ff" />
+                </g>
+              );
+            })}
+          </svg>
+          {hudData.cards.map(card => {
+            const glowClass = card.type === 'suspect' ? '' : (card.type === 'case' ? (card.status === 'CHARGESHEETED' ? 'orange-glow' : 'gold-glow') : (card.type === 'vehicle' ? 'gold-glow' : ''));
+            if (card.type === 'suspect') {
+              return (
+                <div 
+                  key={card.id} 
+                  className={`hud-card hud-card-suspect ${glowClass}`} 
+                  style={{ left: `${card.left}%`, top: `${card.top}%` }}
+                >
+                  <div className="hud-card-label">{card.label}</div>
+                  <div className="suspect-header">
+                    <div className="suspect-photo-frame">
+                      <img 
+                        src={card.photo} 
+                        className="suspect-photo" 
+                        alt={card.title} 
+                        onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40"><rect width="30" height="40" fill="%23061329"/><text x="50%" y="55%" text-anchor="middle" fill="%2300f0ff" font-size="12">S</text></svg>'; }}
+                      />
+                    </div>
+                    <div className="suspect-meta">
+                      <div className="hud-card-title">{card.title}</div>
+                      <div className="hud-card-detail" style={{ whiteSpace: 'pre-line' }}>{card.meta}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div 
+                key={card.id} 
+                className={`hud-card ${glowClass}`} 
+                style={{ left: `${card.left}%`, top: `${card.top}%` }}
+              >
+                <div className="hud-card-label">{card.label}</div>
+                <div className="hud-card-title">{card.title}</div>
+                <div className="hud-card-detail" style={{ whiteSpace: 'pre-line' }}>{card.meta}</div>
+                {card.badge && (
+                  <span 
+                    className={`badge ${card.badge === 'CHARGESHEETED' ? 'badge-active' : 'badge-approved'}`} 
+                    style={{ fontSize: '7px', padding: '1px 4px', marginTop: '4px', display: 'inline-block' }}
+                  >
+                    {card.badge}
+                  </span>
+                )}
+                {card.photo && (
+                  <div className="hud-card-photo-container">
+                    <img 
+                      src={card.photo} 
+                      className="hud-card-photo" 
+                      alt={card.title} 
+                      onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"><rect width="100" height="60" fill="%23061329"/><text x="50%" y="55%" text-anchor="middle" fill="%23ffd700" font-size="10">VEHICLE</text></svg>'; }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="hud-bottom-panel">
+          <div className="hud-ai-query-card">
+            <div className="hud-ai-avatar">👤</div>
+            <div className="hud-ai-query-text">{hudData.aiQuery}</div>
+          </div>
+          <div className="hud-ai-response-card">
+            <div className="hud-ai-chip">🤖</div>
+            <div className="hud-ai-response-content">
+              <div className="hud-ai-response-title">{hudData.aiResponse.title}</div>
+              <div className="hud-ai-cases-list">
+                {hudData.aiResponse.cases.map((cs, idx) => (
+                  <div key={idx} className="hud-ai-case-item">
+                    {idx + 1}. {cs.split(' — ').map((part, pIdx) => {
+                      if (pIdx === 0) return <strong key={pIdx}>{part} — </strong>;
+                      if (pIdx === cs.split(' — ').length - 1) return <span key={pIdx} style={{ color: 'var(--gold-400)' }}>{part}</span>;
+                      return <span key={pIdx}>{part} — </span>;
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="hud-disclaimer">
+            <strong>SCOPE OF AI:</strong> The system does not replace investigation judgment. It assists officers by surfacing linked records, patterns, and summaries — with full audit trails and source citations.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={mainDivStyle}>
       {/* TOP BAR */}
@@ -640,6 +1203,25 @@ function ReactNetworkGraph() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* View Selector Toggle */}
+          <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', padding: '2px', borderRadius: '6px', marginRight: '8px' }}>
+            <button 
+              type="button"
+              className={`hud-toggle-btn ${viewMode === 'syndicate' ? 'active' : ''}`}
+              onClick={() => setViewMode('syndicate')}
+              style={{ border: 'none', background: viewMode === 'syndicate' ? 'var(--gold-500)' : 'transparent', color: viewMode === 'syndicate' ? 'var(--navy-950)' : 'var(--text-muted)', fontSize: '11px', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              📊 Syndicate Graph
+            </button>
+            <button 
+              type="button"
+              className={`hud-toggle-btn ${viewMode === 'hud' ? 'active' : ''}`}
+              onClick={() => setViewMode('hud')}
+              style={{ border: 'none', background: viewMode === 'hud' ? 'var(--gold-500)' : 'transparent', color: viewMode === 'hud' ? 'var(--navy-950)' : 'var(--text-muted)', fontSize: '11px', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              🎯 Cross-District HUD
+            </button>
+          </div>
           {/* Search box */}
           <div style={{
             display: 'flex',
@@ -811,6 +1393,7 @@ function ReactNetworkGraph() {
                       fill="none"
                       stroke={strokeColor}
                       strokeWidth={strokeWidth}
+                      className={liveTrackingEnabled ? 'live-tracking-link' : ''}
                       style={{ opacity, transition: 'opacity 0.2s, stroke 0.2s' }}
                     />
                     {isHighlighted && (
@@ -873,35 +1456,113 @@ function ReactNetworkGraph() {
                         style={{ filter: 'drop-shadow(0 0 4px var(--gold-500))' }}
                       />
                     )}
-                    
-                    {/* Base Node Circle */}
-                    <circle
-                      r={radius}
-                      fill={metadata.gradient}
-                      stroke={node.risk === 'High' ? 'var(--red-400)' : 'rgba(255,255,255,0.2)'}
-                      strokeWidth="2"
-                    />
 
-                    {/* Emoji representation */}
-                    <text
-                      dy="4"
-                      textAnchor="middle"
-                      fontSize={node.id === 'center' ? '18px' : '14px'}
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}
-                    >
-                      {metadata.emoji}
-                    </text>
+                    {/* Glowing tracking ring */}
+                    {liveTrackingEnabled && node.type === 'subject' && (node.risk === 'High' || isSelected) && (
+                      <circle
+                        r={radius}
+                        fill="none"
+                        stroke={node.risk === 'High' ? 'var(--red-500)' : 'var(--gold-500)'}
+                        strokeWidth="1.5"
+                        className="node-glowing-ring"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                    )}
+                    
+                    {/* Tactical Vector Icon Shapes */}
+                    {(() => {
+                      const color = metadata.color || '#ffffff';
+                      const strokeColor = node.risk === 'High' ? 'var(--red-400)' : (isSelected ? 'var(--gold-400)' : color);
+                      
+                      switch (node.type) {
+                        case 'subject':
+                          // Radar target crosshairs
+                          return (
+                            <g className="tactical-vector-shape" stroke={strokeColor} style={{ color: strokeColor }}>
+                              <circle r={radius} fill="rgba(6, 19, 41, 0.85)" stroke={strokeColor} strokeWidth="1.5" />
+                              <circle r="4" fill={strokeColor} stroke="none" />
+                              <circle r={radius - 5} fill="none" stroke={strokeColor} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.6" />
+                              <path d={`M -${radius + 3} 0 L ${radius + 3} 0 M 0 -${radius + 3} L 0 ${radius + 3}`} strokeWidth="1" opacity="0.8" />
+                            </g>
+                          );
+                        
+                        case 'group':
+                          // Hexagonal polygon with inner dashboard grid
+                          const points = "-18,-10 -18,10 0,20 18,10 18,-10 0,-20";
+                          const innerPoints = "-14,-8 -14,8 0,16 14,8 14,-8 0,-16";
+                          return (
+                            <g className="tactical-vector-shape" stroke={strokeColor} style={{ color: strokeColor }}>
+                              <polygon points={points} fill="rgba(238, 185, 2, 0.15)" stroke={strokeColor} strokeWidth="2.2" />
+                              <polygon points={innerPoints} fill="none" stroke={strokeColor} strokeWidth="0.8" strokeDasharray="3,1.5" opacity="0.7" />
+                              <circle r="4" fill={strokeColor} stroke="none" />
+                            </g>
+                          );
+
+                        case 'case':
+                          // Legal Case File folder
+                          return (
+                            <g className="tactical-vector-shape" stroke={strokeColor} style={{ color: strokeColor }}>
+                              <rect x="-10" y="-12" width="20" height="24" rx="2" ry="2" fill="rgba(139, 92, 246, 0.15)" stroke={strokeColor} strokeWidth="1.5" />
+                              <line x1="-6" y1="-5" x2="6" y2="-5" strokeWidth="1.2" />
+                              <line x1="-6" y1="0" x2="6" y2="0" strokeWidth="1.2" />
+                              <line x1="-6" y1="5" x2="2" y2="5" strokeWidth="1.2" />
+                            </g>
+                          );
+
+                        case 'location':
+                          // GPS Locator target
+                          return (
+                            <g className="tactical-vector-shape" stroke={strokeColor} style={{ color: strokeColor }}>
+                              <circle r={radius} fill="rgba(16, 185, 129, 0.1)" stroke={strokeColor} strokeWidth="1.5" />
+                              <path d="M 0 -11 C -5 -11, -5 -4, 0 0 C 5 -4, 5 -11, 0 -11 Z" fill={strokeColor} opacity="0.85" />
+                              <circle cy="-7" r="2.2" fill="#020914" stroke="none" />
+                            </g>
+                          );
+
+                        case 'vehicle':
+                          // Scanning vehicle box
+                          return (
+                            <g className="tactical-vector-shape" stroke={strokeColor} style={{ color: strokeColor }}>
+                              <rect x="-13" y="-10" width="26" height="20" rx="3" ry="3" fill="rgba(59, 130, 246, 0.12)" stroke={strokeColor} strokeWidth="1.5" />
+                              <line x1="-9" y1="-10" x2="-9" y2="10" strokeWidth="2" opacity="0.8" />
+                              <line x1="9" y1="-10" x2="9" y2="10" strokeWidth="2" opacity="0.8" />
+                              <circle r="3" fill={strokeColor} stroke="none" />
+                            </g>
+                          );
+
+                        case 'contact':
+                          // Beacon wave communications node
+                          return (
+                            <g className="tactical-vector-shape" stroke={strokeColor} style={{ color: strokeColor }}>
+                              <circle r={radius} fill="rgba(245, 158, 11, 0.08)" stroke={strokeColor} strokeWidth="1.5" />
+                              <circle r="6" fill="none" strokeWidth="1" />
+                              <circle r="2.2" fill={strokeColor} stroke="none" />
+                              <path d="M -10 -4 A 12 12 0 0 1 -10 4" fill="none" strokeWidth="0.8" />
+                              <path d="M 10 -4 A 12 12 0 0 0 10 4" fill="none" strokeWidth="0.8" />
+                            </g>
+                          );
+
+                        default:
+                          return (
+                            <circle r={radius} fill={metadata.gradient} stroke={strokeColor} strokeWidth="2" />
+                          );
+                      }
+                    })()}
 
                     {/* Suspect Name label */}
                     <text
                       dy={radius + 14}
                       textAnchor="middle"
                       fill={isSelected ? 'var(--gold-400)' : '#f8fafc'}
-                      fontSize="9.5px"
-                      fontWeight={isSelected ? '700' : '500'}
+                      fontSize="8.5px"
+                      className="tactical-node-label"
                       style={{ pointerEvents: 'none', userSelect: 'none', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}
                     >
-                      {node.name.split(' ')[0]} {node.name.split(' ')[1] || ''}
+                      {node.type === 'group' ? (
+                        node.name
+                      ) : (
+                        node.name.split(' (')[0]
+                      )}
                     </text>
                   </g>
                 );
@@ -930,6 +1591,18 @@ function ReactNetworkGraph() {
             <div>• Drag nodes to reposition</div>
             <div>• Double click to Expand links</div>
             <div>• Right click for Intelligence Drawer</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', borderTop: '1px dashed rgba(255,255,255,0.06)', paddingTop: '6px' }}>
+              <input 
+                type="checkbox" 
+                id="live-tracking-checkbox" 
+                checked={liveTrackingEnabled} 
+                onChange={(e) => setLiveTrackingEnabled(e.target.checked)} 
+                style={{ cursor: 'pointer', margin: 0 }}
+              />
+              <label htmlFor="live-tracking-checkbox" style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '9px', color: liveTrackingEnabled ? '#22c55e' : 'var(--text-muted)' }}>
+                📡 Live tracking signals
+              </label>
+            </div>
           </div>
 
           {/* Hover Tooltip Overlay */}
@@ -982,93 +1655,271 @@ function ReactNetworkGraph() {
           )}
         </div>
 
-        {/* RIGHT (30%): Compact Info Panel */}
+        {/* RIGHT (30%): Detailed Info Panel */}
         <div style={{
           flex: '0 0 30%',
           height: '100%',
-          background: 'rgba(6, 19, 41, 0.9)',
-          padding: '18px',
+          background: 'rgba(6, 19, 41, 0.95)',
+          padding: '16px 18px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '14px',
-          overflowY: 'auto'
+          gap: '12px',
+          overflowY: 'auto',
+          borderLeft: '1px solid var(--glass-border)'
         }}>
-          <div>
-            <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '700', letterSpacing: '1px' }}>
-              Selected Subject Node
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-              <span style={{ fontSize: '24px' }}>{NODE_TYPES[selectedNode.type].emoji}</span>
-              <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>{selectedNode.name}</h4>
-            </div>
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.4' }}>
-              "{selectedNode.details}"
-            </p>
-          </div>
-
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {/* Network Score */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Network Score</span>
-              <span style={{
-                color: selectedNode.score >= 80 ? 'var(--red-400)' : 'var(--gold-400)',
-                fontWeight: '800',
-                fontSize: '15px'
-              }}>
-                {selectedNode.score} / 100
-              </span>
-            </div>
-
-            {/* Risk Indicator bar */}
+          {selectedNode.type === 'group' ? (
+            /* GANG PROFILE VIEW */
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px' }}>
-                <span>Risk Indicator</span>
-                <span style={{ color: selectedNode.risk === 'High' ? 'var(--red-400)' : 'var(--green-400)', fontWeight: '700' }}>
-                  {selectedNode.risk} Threat
-                </span>
+              <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--gold-400)', fontWeight: '700', letterSpacing: '1px' }}>
+                📁 Mapped Syndicate Group
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', marginBottom: '10px' }}>
+                <span style={{ fontSize: '24px' }}>👥</span>
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>{selectedNode.name}</h4>
               </div>
-              <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${selectedNode.score}%`,
-                  background: selectedNode.risk === 'High' ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : 'linear-gradient(90deg, #10b981, #f59e0b)',
-                  borderRadius: '3px'
-                }}></div>
+              
+              <div className="sidebar-profile-card">
+                <div className="sidebar-info-row">
+                  <span>Total Mapped Members</span>
+                  <strong>{gangMembers.length} active</strong>
+                </div>
+                <div className="sidebar-info-row">
+                  <span>Area of Operations</span>
+                  <strong>{selectedNode.areaOfOperation || 'Uttar Pradesh'}</strong>
+                </div>
+                <div className="sidebar-info-row">
+                  <span>Total Active Cases</span>
+                  <strong>{selectedNode.cases} cases</strong>
+                </div>
+                <div className="sidebar-info-row">
+                  <span>Risk Level</span>
+                  <span style={{ color: 'var(--red-400)', fontWeight: '700' }}>{selectedNode.risk} Threat</span>
+                </div>
+              </div>
+
+              <div className="sidebar-section-title">👥 Connected Criminals</div>
+              <ul className="sidebar-list">
+                {gangMembers.length === 0 ? (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No members found in local cache.</div>
+                ) : (
+                  gangMembers.map(m => (
+                    <li 
+                      key={m.id} 
+                      className="sidebar-list-item clickable"
+                      onClick={() => setSelectedNodeId(m.id)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>👤</span>
+                        <strong style={{ color: '#f8fafc' }}>{m.personalInfo.name}</strong>
+                      </div>
+                      <span className={`badge ${m.status === 'Wanted' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '8px', padding: '1px 4px' }}>
+                        {m.status}
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+
+              {liveTrackingEnabled && (
+                <div>
+                  <div className="sidebar-section-title">📡 Area Telemetry</div>
+                  <div className="telemetry-widget">
+                    <div className="telemetry-header">
+                      <span className="telemetry-pulse"></span>
+                      <span>MONITORING GANG ACTIVITY</span>
+                    </div>
+                    <div className="telemetry-row">
+                      <span>Telemetry Mode:</span>
+                      <span>ACTIVE SECTOR SCAN</span>
+                    </div>
+                    <div className="telemetry-row">
+                      <span>Scan Status:</span>
+                      <span style={{ color: '#86efac' }}>SECURED</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : selectedNode.type === 'subject' && selectedDossier ? (
+            /* SUSPECT PROFILE VIEW */
+            <div>
+              <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '700', letterSpacing: '1px' }}>
+                👤 Mapped Suspect Node
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', marginBottom: '10px' }}>
+                <span style={{ fontSize: '24px' }}>👤</span>
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+                  {selectedDossier.personalInfo.name}
+                </h4>
+              </div>
+
+              <div className="sidebar-profile-card">
+                <div className="sidebar-photo-frame">
+                  <img 
+                    src={selectedDossier.personalInfo.photograph} 
+                    className="sidebar-photo" 
+                    alt={selectedDossier.personalInfo.name}
+                    onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="90" height="110"><rect width="90" height="110" fill="%23061329"/><text x="50%" y="55%" text-anchor="middle" fill="%2300f0ff" font-size="12">NO IMAGE</text></svg>'; }}
+                  />
+                </div>
+                
+                <div className="sidebar-info-row">
+                  <span>Alias:</span>
+                  <strong>{selectedDossier.personalInfo.aliasName || 'None'}</strong>
+                </div>
+                <div className="sidebar-info-row">
+                  <span>Age / Gender:</span>
+                  <strong>{selectedDossier.personalInfo.age} yrs / {selectedDossier.personalInfo.gender}</strong>
+                </div>
+                <div className="sidebar-info-row">
+                  <span>Status:</span>
+                  <span className={`badge ${selectedDossier.status === 'Wanted' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '8px', padding: '1px 4px' }}>
+                    {selectedDossier.status}
+                  </span>
+                </div>
+                <div className="sidebar-info-row">
+                  <span>Last Location:</span>
+                  <span className="sidebar-info-val" title={selectedDossier.personalInfo.address}>
+                    {selectedDossier.personalInfo.address}
+                  </span>
+                </div>
+              </div>
+
+              {liveTrackingEnabled && (
+                <div>
+                  <div className="sidebar-section-title">🛰️ Live Telemetry Triangulation</div>
+                  {(() => {
+                    const distKey = (selectedDossier.history && selectedDossier.history[0] && selectedDossier.history[0].district || 'lucknow').toLowerCase().trim();
+                    const baseCoords = districtCenters[distKey] || districtCenters.lucknow;
+                    const lat = (baseCoords.lat + telemetryOffsets.lat).toFixed(6);
+                    const lng = (baseCoords.lng + telemetryOffsets.lng).toFixed(6);
+                    const ageSec = Math.floor((Date.now() - telemetryOffsets.lastPing) / 1000);
+                    return (
+                      <div className="telemetry-widget">
+                        <div className="telemetry-header">
+                          <span className="telemetry-pulse"></span>
+                          <span>ACTIVE SIGNAL ACQUIRED</span>
+                        </div>
+                        <div className="telemetry-row">
+                          <span>Latitude:</span>
+                          <span>{lat}° N</span>
+                        </div>
+                        <div className="telemetry-row">
+                          <span>Longitude:</span>
+                          <span>{lng}° E</span>
+                        </div>
+                        <div className="telemetry-row">
+                          <span>Triangulated:</span>
+                          <span style={{ color: '#86efac' }}>{baseCoords.name} sector</span>
+                        </div>
+                        <div className="telemetry-row">
+                          <span>Ping Status:</span>
+                          <span>Stable ({ageSec}s ago)</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              <div className="sidebar-section-title">📋 Biometric Profile</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div className="sidebar-info-row">
+                  <span>Height / Weight:</span>
+                  <strong>{selectedDossier.biometrics.height || 'N/A'} / {selectedDossier.biometrics.weight || 'N/A'}</strong>
+                </div>
+                <div className="sidebar-info-row">
+                  <span>Eye / Blood Group:</span>
+                  <strong>{selectedDossier.biometrics.eyeColor || 'N/A'} / {selectedDossier.biometrics.bloodGroup || 'N/A'}</strong>
+                </div>
+                <div className="sidebar-info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', borderBottom: 'none' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Ident. Marks:</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', fontStyle: 'italic' }}>
+                    {selectedDossier.biometrics.identificationMarks || 'None reported'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="sidebar-section-title">🚗 Mapped Vehicles</div>
+              <ul className="sidebar-list">
+                {(!selectedDossier.vehicleDetails || selectedDossier.vehicleDetails.length === 0) ? (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No vehicles registered.</div>
+                ) : (
+                  selectedDossier.vehicleDetails.map((v, vIdx) => (
+                    <li key={vIdx} className="sidebar-list-item">
+                      <span style={{ fontWeight: 'bold', color: '#f8fafc' }}>{v.vehicleNumber}</span>
+                      <span>{v.vehicleType}</span>
+                    </li>
+                  ))
+                )}
+              </ul>
+
+              <div className="sidebar-section-title">📄 Active FIR Case Files</div>
+              <ul className="sidebar-list" style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                {(!selectedDossier.history || selectedDossier.history.length === 0) ? (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No FIRs on record.</div>
+                ) : (
+                  selectedDossier.history.map((fir, fIdx) => (
+                    <li key={fIdx} className="sidebar-list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                      <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: 'bold', color: '#f8fafc' }}>{fir.firNumber}</span>
+                        <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{fir.policeStation} PS</span>
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', overflow: 'hidden', textOverlap: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
+                        {fir.sections}
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+
+              <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+                <button 
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '11px', width: '100%' }}
+                  onClick={() => typeof window.openDossierById === 'function' && window.openDossierById(selectedDossier.id)}
+                >
+                  👁️ View Full Dossier
+                </button>
               </div>
             </div>
-
-            {/* Connections */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
-              <span>Total Connections</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>{selectedNode.connections} nodes</span>
+          ) : (
+            /* OTHER ASSET OR FALLBACK VIEW */
+            <div>
+              <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '700', letterSpacing: '1px' }}>
+                Selected Node
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <span style={{ fontSize: '24px' }}>{NODE_TYPES[selectedNode.type]?.emoji || '📍'}</span>
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>{selectedNode.name}</h4>
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px', fontStyle: 'italic', lineHeight: '1.4' }}>
+                "{selectedNode.details}"
+              </p>
+              
+              <div className="sidebar-profile-card" style={{ marginTop: '12px' }}>
+                <div className="sidebar-info-row">
+                  <span>Type:</span>
+                  <strong>{NODE_TYPES[selectedNode.type]?.label || selectedNode.type}</strong>
+                </div>
+                {selectedNode.parentId && (
+                  <div className="sidebar-info-row">
+                    <span>Associated To:</span>
+                    <strong 
+                      style={{ color: 'var(--gold-400)', cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => setSelectedNodeId(selectedNode.parentId)}
+                    >
+                      View Suspect Profile
+                    </strong>
+                  </div>
+                )}
+                <div className="sidebar-info-row">
+                  <span>Threat Index:</span>
+                  <strong>{selectedNode.score || 0} / 100</strong>
+                </div>
+              </div>
             </div>
-
-            {/* Cases */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
-              <span>FIR/Case Files</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>{selectedNode.cases} cases</span>
-            </div>
-
-            {/* Last Activity */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-              <span>Last Intelligence Activity</span>
-              <span style={{ color: 'var(--gold-400)', fontWeight: '600', fontSize: '11px' }}>{selectedNode.lastActivity}</span>
-            </div>
-          </div>
-
-          {/* Quick Actions Panel */}
-          <div style={{
-            marginTop: 'auto',
-            padding: '12px',
-            background: 'rgba(255,255,255,0.02)',
-            border: '1.5px dashed var(--glass-border)',
-            borderRadius: '8px',
-            fontSize: '11px',
-            color: 'var(--text-muted)'
-          }}>
-            <div style={{ fontWeight: '700', color: 'var(--gold-400)', marginBottom: '4px' }}>💡 NODE INTELLIGENCE</div>
-            <div>Double-click this node to scan adjacent syndicate networks. Right-click to inspect full records logs.</div>
-          </div>
+          )}
         </div>
       </div>
 

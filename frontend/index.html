@@ -17,6 +17,14 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <!-- Babel Standalone for in-browser JSX parsing -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    // Configure Babel to use classic runtime for React to avoid ES module import generation
+    Babel.registerPreset("react-classic", {
+      presets: [
+        [Babel.availablePresets["react"], { runtime: "classic" }]
+      ]
+    });
+  </script>
   <!-- D3.js for network graph calculations (still useful for simulation layout if needed) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <!-- Leaflet JS -->
@@ -254,17 +262,21 @@
             <input id="f-fir" class="form-control-sm" placeholder="FIR-XXX/YYYY" />
           </div>
           <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
-            <input id="f-ps" class="form-control-sm" placeholder="Police Station name" />
-          </div>
-          <div class="form-group-row">
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">District</label>
-            <select id="f-district" class="form-control-sm">
+            <select id="f-district" class="form-control-sm" onchange="window.onModalDistrictChange()">
               <option value="lucknow">Lucknow</option>
               <option value="varanasi">Varanasi</option>
               <option value="prayagraj">Prayagraj</option>
               <option value="noida">Gautam Buddha Nagar</option>
             </select>
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
+            <select id="f-ps" class="form-control-sm" onchange="window.onModalStationChange()"></select>
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Village / ग्राम</label>
+            <select id="f-village" class="form-control-sm"></select>
           </div>
           <div class="form-group-row">
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Status</label>
@@ -322,7 +334,9 @@
     </div>
   </div>
 
-  <script type="text/babel" src="network_react.js"></script>
+  <div id="dossier-print-area"></div>
+
+  <script type="text/babel" data-presets="react-classic" src="network_react.js"></script>
   <script src="map.js"></script>
   <script src="app.js"></script>
   <script src="alerts_center.js"></script>

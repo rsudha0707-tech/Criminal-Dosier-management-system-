@@ -179,8 +179,42 @@ function buildSidebar() {
   }).join('');
 }
 
+window.navigateToDossiersWithFilter = async function(filterType) {
+  await navigateTo('dossiers');
+  const statusSelect = document.getElementById('filter-status');
+  const specialSelect = document.getElementById('filter-special');
+  const scopeSelect = document.getElementById('filter-scope');
+  const searchInput = document.getElementById('dossier-search-input');
+
+  if (searchInput) searchInput.value = '';
+
+  if (statusSelect) statusSelect.value = 'all';
+  if (specialSelect) specialSelect.value = 'all';
+  if (scopeSelect) scopeSelect.value = 'all';
+
+  if (filterType === 'wanted') {
+    if (statusSelect) statusSelect.value = 'Wanted';
+  } else if (filterType === 'active') {
+    if (specialSelect) specialSelect.value = 'active';
+  } else if (filterType === 'history_sheeter') {
+    if (specialSelect) specialSelect.value = 'history_sheeter';
+  } else if (filterType === 'gangster') {
+    if (specialSelect) specialSelect.value = 'gangster';
+  } else if (filterType === 'multi_ps') {
+    if (scopeSelect) scopeSelect.value = 'multiple';
+  }
+
+  filterDossierTable('');
+};
+
 // ── Navigation ──
-function navigateTo(view) {
+async function navigateTo(view) {
+  // Pull fresh data from database on navigation to ensure absolute synchronization
+  if (['dashboard', 'dossiers', 'villages', 'map', 'intelligence', 'network'].includes(view)) {
+    if (window.syncDatabase) {
+      await window.syncDatabase();
+    }
+  }
   currentView = view;
   // Update active nav
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -188,7 +222,7 @@ function navigateTo(view) {
   if (navEl) navEl.classList.add('active');
 
   // Destroy old charts
-  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch (e) { } });
   charts = {};
 
   // Close notif panel
@@ -205,7 +239,7 @@ function navigateTo(view) {
     try {
       window.unmountReactNetworkGraph();
       window.unmountReactNetworkGraph = null;
-    } catch(e) {
+    } catch (e) {
       console.error("Error unmounting React network graph:", e);
     }
   }
@@ -215,7 +249,7 @@ function navigateTo(view) {
   const header = document.getElementById('page-title');
   const headerSub = document.getElementById('page-subtitle');
 
-  switch(view) {
+  switch (view) {
     case 'dashboard':
       header.textContent = t('dashboard');
       headerSub.textContent = 'Uttar Pradesh Police — Real-time Criminal Intelligence Overview';
@@ -301,6 +335,12 @@ function renderDashboard() {
   const dossiers = getDossiers();
   const pendingDossiers = dossiers.filter(d => d.approvalStatus === 'Pending Verification');
 
+  // Calculate criminals active in multiple police stations
+  const multiPsCount = dossiers.filter(d => {
+    const stations = new Set(d.history.map(h => (h.policeStation || '').trim().toLowerCase()));
+    return stations.size > 1;
+  }).length;
+
   return `
     <div class="dashboard-console">
       <!-- SECTION 1: METRICS OVERVIEW (Loaded Immediately) -->
@@ -316,11 +356,12 @@ function renderDashboard() {
         </div>` : ''}
 
         <div class="stats-grid-modern">
-          ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '', "navigateTo('dossiers')")}
-          ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger', "navigateTo('dossiers')")}
-          ${statCardCompact('📋', stats.historySheeters, t('historySheeters'), 'warning', "navigateTo('dossiers')")}
-          ${statCardCompact('⛔', stats.gangsters, t('gangsters'), 'danger', "navigateTo('dossiers')")}
-          ${statCardCompact('🚨', stats.wantedCriminals, t('wantedCriminals'), 'danger', "navigateTo('dossiers')")}
+          ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '', "navigateToDossiersWithFilter('all')")}
+          ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger', "navigateToDossiersWithFilter('active')")}
+          ${statCardCompact('📋', stats.historySheeters, t('historySheeters'), 'warning', "navigateToDossiersWithFilter('history_sheeter')")}
+          ${statCardCompact('⛔', stats.gangsters, t('gangsters'), 'danger', "navigateToDossiersWithFilter('gangster')")}
+          ${statCardCompact('🚨', stats.wantedCriminals, t('wantedCriminals'), 'danger', "navigateToDossiersWithFilter('wanted')")}
+          ${statCardCompact('🚔🔄', multiPsCount, currentLang === 'hi' ? 'बहु-थाना अपराधी' : 'Multi-PS Offenders', 'info', "navigateToDossiersWithFilter('multi_ps')")}
           ${renderRoleSpecificStatCards()}
         </div>
       </section>
@@ -464,7 +505,7 @@ function renderRoleSpecificStatCards() {
   // ── Level 1: SHO — villages count, click → village list modal ──
   if (lvl === 1) {
     const stationKey = currentUser.station.split(' PS')[0].trim();
-    const villages   = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
+    const villages = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
     return statCardCompact(
       '🏘️', villages.length,
       'Villages (This Station)',
@@ -475,7 +516,7 @@ function renderRoleSpecificStatCards() {
 
   // ── Level 2: SP/CO — station count, click → station detail modal ──
   if (lvl === 2) {
-    const dist     = MASTER_DATA.districts.find(d => d.id === currentUser.district);
+    const dist = MASTER_DATA.districts.find(d => d.id === currentUser.district);
     const stations = dist ? dist.circles.reduce((a, c) => a.concat(c.stations), []) : [];
     return statCardCompact(
       '🚔', stations.length,
@@ -487,8 +528,8 @@ function renderRoleSpecificStatCards() {
 
   // ── Level 3: PHQ — statewide totals ──
   return [
-    statCardCompact('🏛️', MASTER_DATA.totals.districts,      t('districts'),      'info',    "navigateTo('dossiers')"),
-    statCardCompact('🚔', MASTER_DATA.totals.policeStations, t('policeStations'),  'success', "navigateTo('dossiers')")
+    statCardCompact('🏛️', MASTER_DATA.totals.districts, t('districts'), 'info', "navigateTo('dossiers')"),
+    statCardCompact('🚔', MASTER_DATA.totals.policeStations, t('policeStations'), 'success', "navigateTo('dossiers')")
   ].join('');
 }
 
@@ -497,18 +538,15 @@ function renderRoleSpecificStatCards() {
 // ══════════════════════════════════════════════════════════
 function showSHOVillageListModal() {
   const stationKey = currentUser.station.split(' PS')[0].trim();
-  const villages   = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
-  const dossiers   = getDossiers();
+  const villages = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
+  const dossiers = getDossiers();
 
   // Build village cards
   const villageCards = villages.map(v => {
-    const criminals = dossiers.filter(d =>
-      d.personalInfo.village === v ||
-      d.history.some(h => h.policeStation.toLowerCase() === stationKey.toLowerCase())
-    ).filter(d => d.personalInfo.village === v);
+    const criminals = getCriminalsInVillage(stationKey, v);
 
     const wantedCount = criminals.filter(d => d.status === 'Wanted').length;
-    const badge       = criminals.length > 0
+    const badge = criminals.length > 0
       ? `<span style="background:rgba(239,68,68,0.15);color:#f87171;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;">${criminals.length} criminal${criminals.length > 1 ? 's' : ''} ${wantedCount > 0 ? '· ' + wantedCount + ' wanted' : ''}</span>`
       : `<span style="background:rgba(34,197,94,0.1);color:#4ade80;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;">Clear</span>`;
 
@@ -551,20 +589,19 @@ window.showSHOVillageListModal = showSHOVillageListModal;
 
 // ── Village Detail: list of criminals in that village ──
 function showSHOVillageDetailModal(villageName, stationKey, returnModalId) {
-  const dossiers  = getDossiers();
-  const criminals = dossiers.filter(d => d.personalInfo.village === villageName);
+  const criminals = getCriminalsInVillage(stationKey, villageName);
 
   const statusColor = s =>
-    s === 'Wanted'      ? { bg: 'rgba(239,68,68,0.15)',    fg: '#f87171' } :
-    s === 'Active'      ? { bg: 'rgba(245,158,11,0.15)',   fg: '#fbbf24' } :
-    s === 'In Jail'     ? { bg: 'rgba(99,102,241,0.15)',   fg: '#a78bfa' } :
-    s === 'Out on Bail' ? { bg: 'rgba(34,197,94,0.12)',    fg: '#4ade80' } :
-                          { bg: 'rgba(100,116,139,0.15)',  fg: '#94a3b8' };
+    s === 'Wanted' ? { bg: 'rgba(239,68,68,0.15)', fg: '#f87171' } :
+      s === 'Active' ? { bg: 'rgba(245,158,11,0.15)', fg: '#fbbf24' } :
+        s === 'In Jail' ? { bg: 'rgba(99,102,241,0.15)', fg: '#a78bfa' } :
+          s === 'Out on Bail' ? { bg: 'rgba(34,197,94,0.12)', fg: '#4ade80' } :
+            { bg: 'rgba(100,116,139,0.15)', fg: '#94a3b8' };
 
   const cards = criminals.map(d => {
-    const risk  = calculateRiskScore(d);
-    const col   = statusColor(d.status);
-    const fir   = d.history[0] || {};
+    const risk = calculateRiskScore(d);
+    const col = statusColor(d.status);
+    const fir = d.history[0] || {};
     return `
       <div style="display:flex;gap:14px;padding:16px;margin-bottom:10px;
                   background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:14px;">
@@ -615,8 +652,8 @@ function showSHOVillageDetailModal(villageName, stationKey, returnModalId) {
     </div>
     <div>
       ${criminals.length
-        ? cards
-        : '<div style="text-align:center;color:var(--text-muted);padding:40px 0;">✅ No criminal records for this village.</div>'}
+      ? cards
+      : '<div style="text-align:center;color:var(--text-muted);padding:40px 0;">✅ No criminal records for this village.</div>'}
     </div>
   `);
 }
@@ -629,8 +666,8 @@ function showDistrictStationDetails() {
   const dist = MASTER_DATA.districts.find(d => d.id === currentUser.district);
   if (!dist) return;
 
-  const dossiers       = getDossiers();
-  const totalStations  = dist.circles.reduce((n, c) => n + c.stations.length, 0);
+  const dossiers = getDossiers();
+  const totalStations = dist.circles.reduce((n, c) => n + c.stations.length, 0);
 
   const stationRows = dist.circles.flatMap(circle =>
     circle.stations.map(station => {
@@ -738,16 +775,16 @@ function initDistrictBars() {
     const stationKey = currentUser.station ? currentUser.station.split(' PS')[0].trim() : '';
     const villages = (window.VILLAGES_BY_STATION && window.VILLAGES_BY_STATION[stationKey]) || [];
     const dossiers = getDossiers();
-    
+
     // Count occurrences per village
     const villageData = villages.map(v => {
-      const count = dossiers.filter(d => d.personalInfo.village === v).length;
+      const count = getCriminalsInVillage(stationKey, v).length;
       return { name: v, count: count };
     });
 
     // Sort by count descending for a clean analytics view
     villageData.sort((a, b) => b.count - a.count);
-    
+
     const maxCount = Math.max(...villageData.map(v => v.count), 1);
     distBar.innerHTML = villageData.map(v => `
       <div class="district-bar-item" style="cursor: pointer;" onclick="showSHOVillageDetailModal('${v.name.replace(/'/g, "\\'")}', '${stationKey.replace(/'/g, "\\'")}', 'dashboard')">
@@ -937,6 +974,207 @@ function initDashboardLazyLoading() {
 }
 
 // ══════════════════════════════════════════════════════════
+//  UNIVERSAL GRID-PRINT UTILITY
+// ══════════════════════════════════════════════════════════
+/**
+ * printGridView(title, subtitle, columns, rows)
+ * Opens a styled print window for any data-list / gridview.
+ * @param {string}   title    – Report heading
+ * @param {string}   subtitle – Secondary description line
+ * @param {string[]} columns  – Array of column header labels
+ * @param {Array[]}  rows     – Array of row arrays (plain text values)
+ */
+window.printGridView = function(title, subtitle, columns, rows) {
+  const printWindow = window.open('', '_blank', 'width=1050,height=800');
+  if (!printWindow) {
+    showToast('⚠️ Pop-up blocked! Allow pop-ups to print.', 'warning');
+    return;
+  }
+  const dateStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+  const thCells = columns.map(c => `<th style="border:1px solid #94a3b8;padding:8px 10px;background:#e2e8f0;font-size:11px;text-transform:uppercase;color:#1e293b;white-space:nowrap;">${c}</th>`).join('');
+  const tbRows = rows.map((row, i) => {
+    const cells = row.map(val => `<td style="border:1px solid #cbd5e1;padding:7px 10px;font-size:11px;color:#1e293b;vertical-align:top;">${val === null || val === undefined ? '' : String(val).replace(/<[^>]+>/g, '')}</td>`).join('');
+    return `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'}">${cells}</tr>`;
+  }).join('');
+
+  printWindow.document.write(`<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <title>${title} — UP Police CDIMS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;padding:28px 32px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .no-print{display:flex;justify-content:flex-end;gap:10px;margin-bottom:18px}
+      .btn-print{padding:9px 20px;background:#0f1f3d;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700}
+      .btn-print:hover{background:#1c3566}
+      .ph{display:flex;align-items:center;justify-content:space-between;border-bottom:3px double #0f1f3d;padding-bottom:14px;margin-bottom:18px}
+      .ph img{height:56px;object-fit:contain}
+      .ph-text{text-align:right}
+      .ph-text h1{font-size:15px;font-weight:800;color:#0f1f3d;letter-spacing:.4px}
+      .ph-text p{font-size:10px;color:#64748b;font-weight:600;margin-top:3px}
+      .report-title{margin-bottom:16px;background:#f8fafc;border-left:4px solid #c51e24;padding:11px 16px;border-radius:0 6px 6px 0}
+      .report-title h2{font-size:15px;color:#0f1f3d;font-weight:800}
+      .report-title p{font-size:11px;color:#475569;margin-top:4px}
+      .report-meta{font-size:10px;color:#64748b;margin-top:6px;display:flex;gap:16px}
+      table{width:100%;border-collapse:collapse;margin-top:8px}
+      .sign-area{display:flex;justify-content:flex-end;margin-top:40px}
+      .sign-block{text-align:center}
+      .sign-line{width:180px;border-bottom:1px solid #475569;margin-bottom:6px}
+      .sign-block div{font-size:11px;color:#334155;font-weight:600}
+      .sign-block span{font-size:9px;color:#64748b}
+      .footer{margin-top:36px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-weight:500}
+      @media print{.no-print{display:none!important}body{padding:10px}}
+    </style>
+  </head><body>
+    <div class="no-print">
+      <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <button class="btn-print" style="background:#475569" onclick="window.close()">✕ Close</button>
+    </div>
+    <div class="ph">
+      <img src="Logo_of_Uttar_Pradesh_Police.png" alt="UP Police Logo">
+      <div class="ph-text">
+        <h1>UTTAR PRADESH POLICE HEADQUARTERS</h1>
+        <p>Criminal Dossier &amp; Intelligence Management System (CDIMS)</p>
+        <p style="color:#c51e24;font-weight:800;font-size:9px;letter-spacing:.5px;">CONFIDENTIAL &bull; INTERNAL JURISDICTION ONLY</p>
+      </div>
+    </div>
+    <div class="report-title">
+      <h2>${title}</h2>
+      <p>${subtitle}</p>
+      <div class="report-meta">
+        <span>Date: <strong>${dateStr}</strong></span>
+        <span>Operator: <strong>${currentUser ? currentUser.username + ' (' + currentUser.role + ')' : 'System'}</strong></span>
+        <span>Total Records: <strong>${rows.length}</strong></span>
+      </div>
+    </div>
+    <table>
+      <thead><tr>${thCells}</tr></thead>
+      <tbody>${tbRows || '<tr><td colspan="' + columns.length + '" style="text-align:center;padding:20px;color:#64748b;">No records found.</td></tr>'}</tbody>
+    </table>
+    <div class="sign-area">
+      <div class="sign-block">
+        <div class="sign-line"></div>
+        <div>Verifying Authority</div>
+        <span>CDIMS Automated Report Audit</span>
+      </div>
+    </div>
+    <div class="footer">
+      <div>Ref: UP-CDIMS-GV-${Date.now()}</div>
+      <div>Security Clearance: High</div>
+      <div>Strictly Confidential</div>
+    </div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script>
+  </body></html>`);
+  printWindow.document.close();
+};
+
+/**
+ * printDossierList() — collects currently visible dossier rows and prints them.
+ */
+window.printDossierList = function() {
+  const dossiers = getDossiers();
+  // Respect active filters
+  const searchVal = document.getElementById('dossier-search-input')?.value || '';
+  const status = document.getElementById('filter-status')?.value || 'all';
+  const special = document.getElementById('filter-special')?.value || 'all';
+  const scope = document.getElementById('filter-scope')?.value || 'all';
+  const approval = document.getElementById('filter-approval')?.value || 'all';
+  const filtered = searchDossiers({ query: searchVal, status, special, scope, approval, userLevel: currentUser.level, district: currentUser.district, station: currentUser.station });
+  const cols = ['#', 'Name / Alias', 'Dossier ID', 'Status', 'Gang', 'District', 'Surveillance Cat.', 'Risk Score', 'Approval', 'FIRs'];
+  const rows = filtered.map((d, i) => [
+    i + 1,
+    d.personalInfo.name + (d.personalInfo.aliasName ? ' aka ' + d.personalInfo.aliasName : ''),
+    d.id,
+    d.status,
+    d.gangInfo?.gangName || '—',
+    d.district || d.personalInfo?.district || '—',
+    d.surveillance?.surveillanceCategory || '—',
+    calculateRiskScore(d) + '/100',
+    d.approvalStatus || '—',
+    d.history?.length || 0
+  ]);
+  printGridView('Criminal Dossier List', 'All dossiers matching current filter criteria', cols, rows);
+};
+
+/**
+ * printSearchResults() — prints the currently visible advanced-search results.
+ */
+window.printSearchResults = function() {
+  const query = document.getElementById('adv-search-input')?.value || '';
+  const district = document.getElementById('adv-district')?.value || 'all';
+  const status = document.getElementById('adv-status')?.value || 'all';
+  const results = searchDossiers({ query, district, status });
+  const cols = ['#', 'Name / Alias', 'Dossier ID', 'Status', 'Gang', 'District', 'Surveillance Cat.', 'Risk Score', 'FIRs'];
+  const rows = results.map((d, i) => [
+    i + 1,
+    d.personalInfo.name + (d.personalInfo.aliasName ? ' aka ' + d.personalInfo.aliasName : ''),
+    d.id,
+    d.status,
+    d.gangInfo?.gangName || '—',
+    d.district || '—',
+    d.surveillance?.surveillanceCategory || '—',
+    calculateRiskScore(d) + '/100',
+    d.history?.length || 0
+  ]);
+  printGridView('Advanced Criminal Search Results', `Search: "${query || 'all'}" | District: ${district} | Status: ${status}`, cols, rows);
+};
+
+/**
+ * printAuditLog() — prints the full system audit trail.
+ */
+window.printAuditLog = function() {
+  const logs = getAuditLogs();
+  const cols = ['#', 'Timestamp', 'User', 'Role', 'Action', 'Details'];
+  const rows = logs.map((log, i) => [
+    i + 1,
+    new Date(log.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }),
+    log.username,
+    log.role,
+    log.action,
+    log.details
+  ]);
+  printGridView('System Audit Trail', 'Complete chronological log of all system actions', cols, rows);
+};
+
+/**
+ * printVillageCriminals(station, village) — prints criminals for the selected village.
+ */
+window.printVillageCriminals = function(station, village) {
+  const criminals = getCriminalsInVillage(station, village);
+  const cols = ['#', 'Name / Alias', 'Dossier ID', 'Status', 'Father Name', 'DOB / Age', 'Mobile', 'Aadhaar', 'Surveillance', 'FIRs', 'Risk Score'];
+  const rows = criminals.map((d, i) => [
+    i + 1,
+    d.personalInfo.name + (d.personalInfo.aliasName ? ' aka ' + d.personalInfo.aliasName : ''),
+    d.id,
+    d.status,
+    d.personalInfo.fatherName || '—',
+    (d.personalInfo.dob || '—') + ' / Age ' + (d.personalInfo.age || '—'),
+    d.personalInfo.mobile || '—',
+    d.personalInfo.aadhaar || '—',
+    d.surveillance?.surveillanceCategory || '—',
+    d.history?.length || 0,
+    calculateRiskScore(d) + '/100'
+  ]);
+  printGridView(`Village Criminal Records — ${village}`, `Police Station: ${station} | Total History Sheeters: ${criminals.length}`, cols, rows);
+};
+
+/**
+ * printUserList() — prints the User Management list.
+ */
+window.printUserList = function() {
+  const mockUsers = [
+    { name: 'SHO Rajiv Sharma', username: 'sho_hazratganj', role: 'Police Station User', level: 'L1', station: 'Hazratganj PS, Lucknow', status: 'Active' },
+    { name: 'IO Priya Singh', username: 'io_chowk', role: 'Police Station User', level: 'L1', station: 'Chowk PS, Lucknow', status: 'Active' },
+    { name: 'CO Prashant Mishra', username: 'co_lucknow', role: 'District Nodal Officer', level: 'L2', station: 'CO Office, Lucknow', status: 'Active' },
+    { name: 'SP Crime Varanasi', username: 'sp_crime_vns', role: 'District Nodal Officer', level: 'L2', station: 'SP Office, Varanasi', status: 'Active' },
+    { name: 'DG Intelligence (PHQ)', username: 'phq_admin', role: 'State Administrator', level: 'L3', station: 'PHQ Lucknow', status: 'Active' }
+  ];
+  const cols = ['#', 'Name', 'Username', 'Role', 'Level', 'Station', 'Status'];
+  const rows = mockUsers.map((u, i) => [i + 1, u.name, u.username, u.role, u.level, u.station, u.status]);
+  printGridView('User Management List', 'All registered system users and their access levels', cols, rows);
+};
+
+// ══════════════════════════════════════════════════════════
 //  DOSSIER LIST VIEW
 // ══════════════════════════════════════════════════════════
 function renderDossierList() {
@@ -944,7 +1182,7 @@ function renderDossierList() {
   return `
     <div class="table-card">
       <div class="table-header">
-        <div class="table-title">📁 ${t('dossiers')} (${dossiers.length})</div>
+        <div class="table-title" id="dossier-table-title">📁 ${t('dossiers')} (${dossiers.length})</div>
         <div class="table-actions">
           <div class="search-bar">
             <span class="search-icon">🔍</span>
@@ -956,6 +1194,17 @@ function renderDossierList() {
             <option value="Active">Active</option>
             <option value="In Jail">In Jail</option>
             <option value="Out on Bail">Out on Bail</option>
+          </select>
+          <select class="filter-select" id="filter-special" onchange="filterDossierTable(document.getElementById('dossier-search-input').value)">
+            <option value="all">All Categories</option>
+            <option value="active">Active Criminals</option>
+            <option value="history_sheeter">History Sheeters</option>
+            <option value="gangster">Gangsters</option>
+          </select>
+          <select class="filter-select" id="filter-scope" onchange="filterDossierTable(document.getElementById('dossier-search-input').value)">
+            <option value="all">All Jurisdictions</option>
+            <option value="single">Single PS Offenders</option>
+            <option value="multiple">Multi-PS Offenders</option>
           </select>
           ${currentUser.level >= 2 ? `
           <select class="filter-select" id="filter-approval" onchange="filterDossierTable(document.getElementById('dossier-search-input').value)">
@@ -969,6 +1218,45 @@ function renderDossierList() {
           ${currentUser.level === 1 ? `<button class="btn btn-primary btn-sm" onclick="openAddDossierModal()">➕ ${t('addDossier')}</button>` : ''}
         </div>
       </div>
+
+      <!-- ── PRINT BAR above the grid ── -->
+      <div style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 20px;
+        background: linear-gradient(90deg, rgba(238,185,2,0.06) 0%, rgba(15,31,61,0.0) 100%);
+        border-bottom: 1px solid var(--glass-border);
+      ">
+        <span style="font-size:12px; color:var(--text-muted); font-weight:600;">
+          🖨️ Print or export the current list
+        </span>
+        <button
+          onclick="printDossierList()"
+          title="Print the current Criminal Dossiers list"
+          style="
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 20px;
+            background: linear-gradient(135deg, #1c3566, #0f1f3d);
+            color: #EEB902;
+            border: 1px solid rgba(238,185,2,0.35);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.3px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          "
+          onmouseover="this.style.background='linear-gradient(135deg,#264d99,#1c3566)'; this.style.borderColor='rgba(238,185,2,0.7)';"
+          onmouseout="this.style.background='linear-gradient(135deg,#1c3566,#0f1f3d)'; this.style.borderColor='rgba(238,185,2,0.35)';"
+        >
+          🖨️ Print Criminal Dossiers
+        </button>
+      </div>
+
       <div id="dossier-table-container">
         ${renderDossierTable(dossiers)}
       </div>
@@ -979,9 +1267,24 @@ function renderDossierList() {
 function filterDossierTable(query) {
   const status = document.getElementById('filter-status')?.value || 'all';
   const approval = document.getElementById('filter-approval')?.value || 'all';
-  const results = searchDossiers({ query, status, approvalStatus: approval });
+  const special = document.getElementById('filter-special')?.value || 'all';
+  const scope = document.getElementById('filter-scope')?.value || 'all';
+  
+  const results = searchDossiers({ 
+    query, 
+    status, 
+    approvalStatus: approval, 
+    special, 
+    stationScope: scope 
+  });
+  
   const container = document.getElementById('dossier-table-container');
   if (container) container.innerHTML = renderDossierTable(results);
+  
+  const titleEl = document.getElementById('dossier-table-title');
+  if (titleEl) {
+    titleEl.textContent = `📁 ${t('dossiers')} (${results.length})`;
+  }
 }
 
 function handleCSVImport(event) {
@@ -989,12 +1292,12 @@ function handleCSVImport(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = function (e) {
     const text = e.target.result;
     showToast('⏳ Parsing CSV data...', 'info');
-    
+
     const result = window.importDossiersFromCSVContent(text);
-    
+
     if (result.success) {
       showToast(`✅ Successfully imported ${result.count} dossiers!`, 'success');
       navigateTo('dossiers');
@@ -1003,11 +1306,11 @@ function handleCSVImport(event) {
       showToast(`❌ Import failed: ${result.error}`, 'error');
     }
   };
-  
-  reader.onerror = function() {
+
+  reader.onerror = function () {
     showToast('❌ Error reading file!', 'error');
   };
-  
+
   reader.readAsText(file);
 }
 
@@ -1031,9 +1334,9 @@ function renderDossierTable(dossiers) {
         </thead>
         <tbody>
           ${dossiers.map(d => {
-            const risk = calculateRiskScore(d);
-            const riskClass = risk >= 70 ? 'risk-high' : risk >= 40 ? 'risk-medium' : 'risk-low';
-            return `
+    const risk = calculateRiskScore(d);
+    const riskClass = risk >= 70 ? 'risk-high' : risk >= 40 ? 'risk-medium' : 'risk-low';
+    return `
               <tr>
                 <td>
                   <div class="criminal-info-cell">
@@ -1060,7 +1363,7 @@ function renderDossierTable(dossiers) {
                   <div class="risk-bar ${riskClass}" title="Risk Score: ${risk}/100">
                     <div class="risk-bar-fill" style="width:${risk}%"></div>
                   </div>
-                  <div style="font-size:10px; font-weight:700; margin-top:3px; color:${risk>=70?'#f87171':risk>=40?'#fbbf24':'#4ade80'}">${risk}/100</div>
+                  <div style="font-size:10px; font-weight:700; margin-top:3px; color:${risk >= 70 ? '#f87171' : risk >= 40 ? '#fbbf24' : '#4ade80'}">${risk}/100</div>
                 </td>
                 <td>${approvalBadge(d.approvalStatus)}</td>
                 <td>
@@ -1074,7 +1377,7 @@ function renderDossierTable(dossiers) {
                 </td>
               </tr>
             `;
-          }).join('')}
+  }).join('')}
         </tbody>
       </table>
     </div>
@@ -1097,18 +1400,29 @@ function categoryBadgeClass(cat) {
   return 'badge badge-cat-c';
 }
 
-function quickApprove(id) {
-  if (approveDossier(id, currentUser)) {
-    showToast('✅ Dossier approved successfully!', 'success');
-    navigateTo('dossiers');
+async function quickApprove(id) {
+  try {
+    const success = await approveDossier(id, currentUser);
+    if (success) {
+      showToast('✅ Dossier approved successfully!', 'success');
+      await navigateTo('dossiers');
+    }
+  } catch (e) {
+    showToast('❌ Approval failed: ' + e.message, 'error');
   }
 }
-function quickReturn(id) {
+async function quickReturn(id) {
   const remarks = prompt('Enter remarks for correction:');
   if (remarks) {
-    returnDossierForCorrection(id, remarks, currentUser);
-    showToast('↩️ Dossier returned for correction.', 'warning');
-    navigateTo('dossiers');
+    try {
+      const success = await returnDossierForCorrection(id, remarks, currentUser);
+      if (success) {
+        showToast('↩️ Dossier returned for correction.', 'warning');
+        await navigateTo('dossiers');
+      }
+    } catch (e) {
+      showToast('❌ Return failed: ' + e.message, 'error');
+    }
   }
 }
 
@@ -1117,6 +1431,7 @@ function quickReturn(id) {
 // ══════════════════════════════════════════════════════════
 function openDossierModal(dossier) {
   if (!dossier) return;
+  window.currentDossierInModal = dossier;
   const modal = document.getElementById('dossier-modal');
   document.getElementById('modal-criminal-name').textContent = `${dossier.personalInfo.name} — ${dossier.id}`;
   const risk = calculateRiskScore(dossier);
@@ -1134,7 +1449,7 @@ function openDossierModal(dossier) {
           <div class="risk-bar ${riskClass}" style="height:10px;">
             <div class="risk-bar-fill" style="width:${risk}%"></div>
           </div>
-          <div style="font-size:14px; font-weight:800; margin-top:4px; color:${risk>=70?'#f87171':risk>=40?'#fbbf24':'#4ade80'}">${risk}/100</div>
+          <div style="font-size:14px; font-weight:800; margin-top:4px; color:${risk >= 70 ? '#f87171' : risk >= 40 ? '#fbbf24' : '#4ade80'}">${risk}/100</div>
         </div>
         <div style="margin-top:12px; padding:10px; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
           <div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">SUBMITTED BY</div>
@@ -1374,9 +1689,10 @@ function renderSearchPage() {
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
         <span style="font-size:11px; color:var(--text-muted);">Quick Tags:</span>
         ${['Wanted', 'Gangster', 'Lucknow', 'Varanasi', 'Shooter', 'IPC 302'].map(tag =>
-          `<span class="badge badge-active" style="cursor:pointer;" onclick="document.getElementById('adv-search-input').value='${tag}'; runAdvancedSearch('${tag}')">${tag}</span>`
-        ).join('')}
+    `<span class="badge badge-active" style="cursor:pointer;" onclick="document.getElementById('adv-search-input').value='${tag}'; runAdvancedSearch('${tag}')">${tag}</span>`
+  ).join('')}
       </div>
+      <button class="btn btn-secondary btn-sm" onclick="printSearchResults()" style="margin-top:4px;" title="Print search results">🖨️ Print Results</button>
     </div>
     <div id="search-results">
       ${renderDossierTable(getDossiers())}
@@ -1469,19 +1785,19 @@ function renderIntelligencePage() {
           <div><div class="ai-card-title">Risk Score Rankings</div><div class="ai-card-subtitle">Predictive threat assessment</div></div>
         </div>
         <div class="ai-content">
-          ${dossiers.sort((a,b) => calculateRiskScore(b) - calculateRiskScore(a)).slice(0,5).map(d => {
-            const risk = calculateRiskScore(d);
-            const riskClass = risk >= 70 ? 'risk-high' : risk >= 40 ? 'risk-medium' : 'risk-low';
-            return `
+          ${dossiers.sort((a, b) => calculateRiskScore(b) - calculateRiskScore(a)).slice(0, 5).map(d => {
+    const risk = calculateRiskScore(d);
+    const riskClass = risk >= 70 ? 'risk-high' : risk >= 40 ? 'risk-medium' : 'risk-low';
+    return `
               <div style="margin-bottom:10px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                   <span style="font-size:12px; font-weight:700;">${d.personalInfo.name}</span>
-                  <span style="font-size:12px; font-weight:800; color:${risk>=70?'#f87171':risk>=40?'#fbbf24':'#4ade80'}">${risk}/100</span>
+                  <span style="font-size:12px; font-weight:800; color:${risk >= 70 ? '#f87171' : risk >= 40 ? '#fbbf24' : '#4ade80'}">${risk}/100</span>
                 </div>
                 <div class="risk-bar ${riskClass}"><div class="risk-bar-fill" style="width:${risk}%"></div></div>
               </div>
             `;
-          }).join('')}
+  }).join('')}
         </div>
       </div>
 
@@ -1543,10 +1859,10 @@ function initIntelligenceCharts() {
       data: {
         labels: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'],
         datasets: [
-          { label: 'Lucknow', data: [8,10,9,12,15,13,10,16,18,16,13,20], borderColor: '#EEB902', tension: 0.4, borderWidth: 2, pointRadius: 3 },
-          { label: 'Varanasi', data: [4,6,5,7,8,7,5,9,10,9,7,11], borderColor: '#ef4444', tension: 0.4, borderWidth: 2, pointRadius: 3 },
-          { label: 'Prayagraj', data: [3,4,4,5,6,5,4,7,8,7,5,8], borderColor: '#3b82f6', tension: 0.4, borderWidth: 2, pointRadius: 3 },
-          { label: 'Noida', data: [5,7,6,8,9,8,6,9,11,10,8,12], borderColor: '#8b5cf6', tension: 0.4, borderWidth: 2, pointRadius: 3 }
+          { label: 'Lucknow', data: [8, 10, 9, 12, 15, 13, 10, 16, 18, 16, 13, 20], borderColor: '#EEB902', tension: 0.4, borderWidth: 2, pointRadius: 3 },
+          { label: 'Varanasi', data: [4, 6, 5, 7, 8, 7, 5, 9, 10, 9, 7, 11], borderColor: '#ef4444', tension: 0.4, borderWidth: 2, pointRadius: 3 },
+          { label: 'Prayagraj', data: [3, 4, 4, 5, 6, 5, 4, 7, 8, 7, 5, 8], borderColor: '#3b82f6', tension: 0.4, borderWidth: 2, pointRadius: 3 },
+          { label: 'Noida', data: [5, 7, 6, 8, 9, 8, 6, 9, 11, 10, 8, 12], borderColor: '#8b5cf6', tension: 0.4, borderWidth: 2, pointRadius: 3 }
         ]
       },
       options: {
@@ -1613,7 +1929,7 @@ function renderAlertsPage() {
           <div style="padding:12px; background:rgba(255,255,255,0.03); border-radius:6px; text-align:center;">
             <div style="font-size:22px;">${ch[0]}</div>
             <div style="font-size:12px; font-weight:600; margin-top:6px;">${ch[1]}</div>
-            <div style="font-size:10px; margin-top:4px; color:${ch[2].includes('✅')?'var(--green-400)':'var(--amber-400)'};">${ch[2]}</div>
+            <div style="font-size:10px; margin-top:4px; color:${ch[2].includes('✅') ? 'var(--green-400)' : 'var(--amber-400)'};">${ch[2]}</div>
           </div>
         `).join('')}
       </div>
@@ -1682,7 +1998,7 @@ function printReportHTML(title, columns, rows, subtitle = '') {
   const tableHeader = columns.map(col => `
     <th style="border-bottom: 2px solid #0f1f3d; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; color: #0f1f3d;">${col}</th>
   `).join('');
-  
+
   const tableRows = rows.map(row => `
     <tr style="border-bottom: 1px solid #e2e8f0;">
       ${row.map(val => `
@@ -1791,7 +2107,7 @@ function printReportHTML(title, columns, rows, subtitle = '') {
 function downloadExcelReport(title, columns, rows, filename) {
   // Build standard CSV string
   const headerLine = columns.map(c => `"${c.replace(/"/g, '""')}"`).join(',');
-  const rowLines = rows.map(row => 
+  const rowLines = rows.map(row =>
     row.map(val => {
       const stringVal = val === null || val === undefined ? '' : String(val);
       return `"${stringVal.replace(/"/g, '""')}"`;
@@ -2088,6 +2404,7 @@ function renderAuditPage() {
       <div class="table-header">
         <div class="table-title">📋 System Audit Trail (${logs.length} entries)</div>
         <div class="table-actions">
+          <button class="btn btn-secondary btn-sm" onclick="printAuditLog()" title="Print audit trail">🖨️ Print List</button>
           <button class="btn btn-secondary btn-sm" onclick="generateReport('audit','pdf')">📥 Export PDF</button>
         </div>
       </div>
@@ -2124,6 +2441,7 @@ function renderUsersPage() {
         <div class="table-title">👤 User Management (${mockUsers.length} users)</div>
         <div class="table-actions">
           <button class="btn btn-primary btn-sm">➕ Add User</button>
+          <button class="btn btn-secondary btn-sm" onclick="printUserList()" title="Print user list">🖨️ Print List</button>
           <button class="btn btn-secondary btn-sm" onclick="generateReport('users','pdf')">📥 Export</button>
         </div>
       </div>
@@ -2138,7 +2456,7 @@ function renderUsersPage() {
                 <td><div style="font-weight:700;">${u.name}</div></td>
                 <td><span style="font-family:monospace; color:var(--gold-400); font-size:12px;">${u.username}</span></td>
                 <td><span style="font-size:12px;">${u.role}</span></td>
-                <td><span class="badge ${u.level==='L3'?'badge-wanted':u.level==='L2'?'badge-active':'badge-bail'}">${u.level}</span></td>
+                <td><span class="badge ${u.level === 'L3' ? 'badge-wanted' : u.level === 'L2' ? 'badge-active' : 'badge-bail'}">${u.level}</span></td>
                 <td style="font-size:12px;">${u.station}</td>
                 <td><span class="badge badge-approved">✅ ${u.status}</span></td>
                 <td>
@@ -2165,10 +2483,10 @@ function renderUsersPage() {
       
       <div class="chart-card" style="padding:16px;">
         <div style="font-size:13px; font-weight:700; margin-bottom:10px;">🔐 Security Settings</div>
-        ${[['Multi-Factor Auth','✅ Enabled'],['Aadhaar SSO','⏳ Setup Pending'],['End-to-End Encryption','✅ Active'],['Session Timeout','✅ 30 min'],['IP Whitelisting','⚠️ Not Set']].map(s=>`
+        ${[['Multi-Factor Auth', '✅ Enabled'], ['Aadhaar SSO', '⏳ Setup Pending'], ['End-to-End Encryption', '✅ Active'], ['Session Timeout', '✅ 30 min'], ['IP Whitelisting', '⚠️ Not Set']].map(s => `
           <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px;">
             <span>${s[0]}</span>
-            <span style="color:${s[1].includes('✅')?'var(--green-400)':s[1].includes('⚠️')?'var(--amber-400)':'var(--text-muted)'};">${s[1]}</span>
+            <span style="color:${s[1].includes('✅') ? 'var(--green-400)' : s[1].includes('⚠️') ? 'var(--amber-400)' : 'var(--text-muted)'};">${s[1]}</span>
           </div>
         `).join('')}
       </div>
@@ -2229,16 +2547,16 @@ function openAddDossierModal() {
     stationSelect.disabled = isSHO;
 
     distSelect.value = currentUser.district === 'all' ? 'lucknow' : currentUser.district;
-    
+
     // Populate stations for district
     const stations = getStationsForDistrict(distSelect.value);
     stationSelect.innerHTML = stations.map(s => `<option value="${s}">${s}</option>`).join('');
-    
+
     // If SHO, set station to their station
     if (isSHO) {
       stationSelect.value = getCurrentStationKey();
     }
-    
+
     // Populate villages
     const villages = getVillagesForStation(stationSelect.value);
     villageSelect.innerHTML = villages.map(v => `<option value="${v}">${v}</option>`).join('');
@@ -2247,7 +2565,7 @@ function openAddDossierModal() {
 function closeAddDossierModal() {
   document.getElementById('add-dossier-modal').classList.remove('open');
 }
-function submitNewDossier() {
+async function submitNewDossier() {
   const name = document.getElementById('f-name').value.trim();
   if (!name) { showToast('❌ Name is required!', 'error'); return; }
 
@@ -2309,10 +2627,10 @@ function submitNewDossier() {
     status: document.getElementById('f-status').value
   };
 
-  addDossier(newDossier, currentUser);
+  await addDossier(newDossier, currentUser);
   closeAddDossierModal();
   showToast(`✅ Dossier for "${name}" created successfully! Pending district review.`, 'success');
-  navigateTo('dossiers');
+  await navigateTo('dossiers');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2357,8 +2675,8 @@ function showToast(msg, type) {
   const toast = document.createElement('div');
   toast.style.cssText = `
     position:fixed; bottom:24px; right:24px; z-index:9999;
-    background:var(--navy-800); border:1px solid ${colors[type]||colors.info};
-    border-left: 4px solid ${colors[type]||colors.info};
+    background:var(--navy-800); border:1px solid ${colors[type] || colors.info};
+    border-left: 4px solid ${colors[type] || colors.info};
     border-radius:8px; padding:12px 18px; font-size:13px; font-weight:600;
     max-width:360px; box-shadow:0 4px 20px rgba(0,0,0,0.5);
     animation: slideUp 0.3s ease; color:var(--text-primary);
@@ -2400,25 +2718,25 @@ function getCriminalsInVillage(stationName, villageName) {
   const dossiers = getDossiers();
   return dossiers.filter(d => {
     if (!d || !d.personalInfo) return false;
-    const isOfStation = d.history.some(h => h.policeStation && h.policeStation.toLowerCase() === stationName.toLowerCase()) || 
-                         (d.submittedBy && d.submittedBy.toLowerCase().includes(stationName.toLowerCase()));
+    const isOfStation = d.history.some(h => h.policeStation && h.policeStation.toLowerCase() === stationName.toLowerCase()) ||
+      (d.submittedBy && d.submittedBy.toLowerCase().includes(stationName.toLowerCase()));
     const vName = d.personalInfo.village || '';
     return isOfStation && vName.toLowerCase() === villageName.toLowerCase();
   });
 }
 
-window.onVillageDistrictChange = function(districtId) {
+window.onVillageDistrictChange = function (districtId) {
   selectedVillageDistrict = districtId;
   const stations = getStationsForDistrict(districtId);
   selectedVillageStation = stations[0] || '';
   const villages = getVillagesForStation(selectedVillageStation);
   selectedVillageName = villages[0] || null;
-  
+
   const content = document.getElementById('page-content');
   if (content) content.innerHTML = renderVillageDirectory();
 };
 
-window.onVillageStationChange = function(stationName) {
+window.onVillageStationChange = function (stationName) {
   selectedVillageStation = stationName;
   const villages = getVillagesForStation(stationName);
   selectedVillageName = villages[0] || null;
@@ -2427,9 +2745,9 @@ window.onVillageStationChange = function(stationName) {
   if (content) content.innerHTML = renderVillageDirectory();
 };
 
-window.selectVillage = function(villageName) {
+window.selectVillage = function (villageName) {
   selectedVillageName = villageName;
-  
+
   // Highlight active card
   document.querySelectorAll('.village-card').forEach(el => {
     el.classList.remove('active');
@@ -2438,13 +2756,13 @@ window.selectVillage = function(villageName) {
     const nameSpan = el.querySelector('span');
     if (nameSpan) nameSpan.style.color = 'var(--text-primary)';
   });
-  
+
   // Find clicked card
   const clickedCard = Array.from(document.querySelectorAll('.village-card')).find(el => {
     const text = el.querySelector('span')?.textContent || '';
     return text.includes(villageName);
   });
-  
+
   if (clickedCard) {
     clickedCard.classList.add('active');
     clickedCard.style.background = 'linear-gradient(135deg, rgba(238,185,2,0.15), rgba(15,31,61,0.8))';
@@ -2460,15 +2778,15 @@ window.selectVillage = function(villageName) {
   }
 };
 
-window.openAddDossierModalWithVillage = function() {
+window.openAddDossierModalWithVillage = function () {
   openAddDossierModal();
-  
+
   const distSelect = document.getElementById('f-district');
   if (distSelect) {
     distSelect.value = selectedVillageDistrict;
     window.onModalDistrictChange();
   }
-  
+
   const stationSelect = document.getElementById('f-ps');
   if (stationSelect) {
     stationSelect.value = selectedVillageStation;
@@ -2481,7 +2799,7 @@ window.openAddDossierModalWithVillage = function() {
   }
 };
 
-window.onModalDistrictChange = function() {
+window.onModalDistrictChange = function () {
   const districtSelect = document.getElementById('f-district');
   const stationSelect = document.getElementById('f-ps');
   const villageSelect = document.getElementById('f-village');
@@ -2489,19 +2807,19 @@ window.onModalDistrictChange = function() {
 
   const districtId = districtSelect.value;
   const stations = getStationsForDistrict(districtId);
-  
+
   stationSelect.innerHTML = stations.map(s => `<option value="${s}">${s}</option>`).join('');
   window.onModalStationChange();
 };
 
-window.onModalStationChange = function() {
+window.onModalStationChange = function () {
   const stationSelect = document.getElementById('f-ps');
   const villageSelect = document.getElementById('f-village');
   if (!stationSelect || !villageSelect) return;
 
   const stationName = stationSelect.value;
   const villages = getVillagesForStation(stationName);
-  
+
   villageSelect.innerHTML = villages.map(v => `<option value="${v}">${v}</option>`).join('');
 };
 
@@ -2535,7 +2853,7 @@ function renderVillageDirectory() {
   }
 
   let filtersHtml = `<div class="filter-bar" style="margin-bottom:20px; background:var(--glass-bg); padding:15px; border-radius:var(--radius-md); border:1px solid var(--glass-border); display:flex; gap:15px; align-items:center; flex-wrap:wrap;">`;
-  
+
   if (isPHQ) {
     filtersHtml += `
       <div style="display:flex; flex-direction:column; gap:4px;">
@@ -2604,7 +2922,7 @@ function renderVillageCardsList(villages) {
   if (villages.length === 0) {
     return `<div style="font-size:12px; color:var(--text-muted); text-align:center; padding:20px;">No villages registered.</div>`;
   }
-  
+
   return villages.map(v => {
     const criminals = getCriminalsInVillage(selectedVillageStation, v);
     const total = criminals.length;
@@ -2651,13 +2969,14 @@ function renderVillageCriminalsList(stationName, villageName) {
   }
 
   const criminals = getCriminalsInVillage(stationName, villageName);
-  
+
   let headerHtml = `
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--glass-border); padding-bottom:10px; margin-bottom:10px;">
       <div>
         <h3 style="font-size:15px; font-weight:800; color:var(--gold-400);">🏘️ Gram: ${villageName}</h3>
         <p style="font-size:11px; color:var(--text-secondary);">Police Station: ${stationName} | Total History Sheeters: ${criminals.length}</p>
       </div>
+      <button class="btn btn-secondary btn-sm" onclick="printVillageCriminals('${stationName}','${villageName}')" title="Print village criminal list">🖨️ Print List</button>
     </div>
   `;
 
@@ -2675,7 +2994,7 @@ function renderVillageCriminalsList(stationName, villageName) {
   const listHtml = criminals.map(d => {
     const risk = calculateRiskScore(d);
     const riskClass = risk >= 70 ? 'risk-high' : risk >= 40 ? 'risk-medium' : 'risk-low';
-    
+
     const firListHtml = d.history.map(h => `
       <div style="padding:8px 10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:4px; margin-bottom:6px; font-size:11px;">
         <div style="display:flex; justify-content:space-between; font-weight:700; color:var(--gold-400);">
@@ -2709,7 +3028,7 @@ function renderVillageCriminalsList(stationName, villageName) {
             <div style="width:100%; margin-top:4px;">
               <div style="font-size:9px; color:var(--text-muted); text-align:center; font-weight:700; text-transform:uppercase;">Risk Level</div>
               <div class="risk-bar ${riskClass}" style="height:6px; margin-top:3px;"><div class="risk-bar-fill" style="width:${risk}%"></div></div>
-              <div style="font-size:10px; font-weight:700; text-align:center; margin-top:2px; color:${risk>=70?'#f87171':risk>=40?'#fbbf24':'#4ade80'}">${risk}/100</div>
+              <div style="font-size:10px; font-weight:700; text-align:center; margin-top:2px; color:${risk >= 70 ? '#f87171' : risk >= 40 ? '#fbbf24' : '#4ade80'}">${risk}/100</div>
             </div>
           </div>
 
@@ -2768,14 +3087,14 @@ function renderVillageCriminalsList(stationName, villageName) {
   `;
 }
 
-window.openEditStatusInVillage = function(id) {
+window.openEditStatusInVillage = async function (id) {
   const dossiers = getDossiers();
   const d = dossiers.find(x => x.id === id);
   if (!d) return;
 
   const newStatus = prompt(`Update Status for ${d.personalInfo.name} (Current: ${d.status})\nOptions: Wanted, Active, In Jail, Out on Bail`, d.status);
   if (newStatus === null) return;
-  
+
   const validStatuses = ["Wanted", "Active", "In Jail", "Out on Bail"];
   if (!validStatuses.includes(newStatus)) {
     alert("Invalid status! Choose from: Wanted, Active, In Jail, Out on Bail");
@@ -2790,9 +3109,9 @@ window.openEditStatusInVillage = function(id) {
   d.surveillance.surveillanceNotes = remarks;
   d.lastUpdated = new Date().toISOString();
 
-  updateDossier(d, currentUser);
+  await updateDossier(d, currentUser);
   showToast(`✅ Status for ${d.personalInfo.name} updated to ${newStatus}.`, 'success');
-  navigateTo('villages');
+  await navigateTo('villages');
 };
 
 // ══════════════════════════════════════════════════════════
@@ -2829,6 +3148,7 @@ async function doLogin() {
       const dbResult = await window.dbLogin(username, password);
       if (dbResult.success && dbResult.user) {
         currentUser = dbResult.user;
+        window.currentUser = currentUser;
         showToast(`✅ Authentication successful. Welcome, ${currentUser.name}!`, 'success');
       } else {
         showToast(`❌ Login failed: ${dbResult.message || 'Invalid credentials'}`, 'error');
@@ -2847,11 +3167,12 @@ async function doLogin() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.user) {
           currentUser = data.user;
+          window.currentUser = currentUser;
           showToast(`✅ Authentication successful. Welcome, ${currentUser.name}!`, 'success');
         }
       } else {
@@ -2876,9 +3197,9 @@ async function doLogin() {
   // Show the app shell immediately while data loads
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
-  document.getElementById('user-avatar').textContent         = currentUser.avatar;
-  document.getElementById('user-name-display').textContent   = currentUser.name;
-  document.getElementById('user-role-display').textContent   = currentUser.role;
+  document.getElementById('user-avatar').textContent = currentUser.avatar;
+  document.getElementById('user-name-display').textContent = currentUser.name;
+  document.getElementById('user-role-display').textContent = currentUser.role;
   document.getElementById('user-station-display').textContent = currentUser.station;
 
   // Ensure DB is loaded (instant if already done, awaits if still loading)
@@ -2914,7 +3235,7 @@ async function generateOfficerCredentials() {
       username: usernameGenerated,
       password: 'up@' + Math.floor(1000 + Math.random() * 9000)
     };
-    
+
     const resultDiv = document.getElementById('gen-credentials-result');
     resultDiv.style.display = 'block';
     resultDiv.style.cssText = `
@@ -2940,7 +3261,7 @@ async function generateOfficerCredentials() {
         ⚠️ Offline Demo Mode. Credentials generated for this browser session only.
       </div>
     `;
-    
+
     document.getElementById('gen-officer-name').value = '';
     document.getElementById('gen-station').value = '';
     return;
@@ -2992,7 +3313,7 @@ async function generateOfficerCredentials() {
             ⚠️ Synced to Supabase database. Account is ready for custom login.
           </div>
         `;
-        
+
         // Clear input fields
         document.getElementById('gen-officer-name').value = '';
         document.getElementById('gen-station').value = '';
@@ -3010,21 +3331,301 @@ async function generateOfficerCredentials() {
 function doLogout() {
   if (currentUser) addAuditLog(currentUser.username, currentUser.role, 'Logout', 'User logged out');
   currentUser = null;
+  window.currentUser = null;
   document.getElementById('app').classList.remove('active');
   document.getElementById('login-screen').style.display = 'flex';
   if (window.cdims_map) { window.cdims_map.remove(); window.cdims_map = null; }
-  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch (e) { } });
   charts = {};
 }
 
 // Print dossier
 function printDossier() {
-  showToast('🖨️ Preparing print-friendly dossier...', 'info');
-  setTimeout(() => window.print(), 800);
+  const dossier = window.currentDossierInModal;
+  if (!dossier) {
+    showToast('❌ No active dossier selected for printing!', 'error');
+    return;
+  }
+  showToast('⏳ Preparing print-friendly dossier...', 'info');
+
+  const risk = calculateRiskScore(dossier);
+  const ai = runCrimePatternAnalysis(dossier);
+
+  const printArea = document.getElementById('dossier-print-area');
+  if (printArea) {
+    printArea.innerHTML = `
+      <div class="print-container">
+        <!-- 1. Header Emblem Table -->
+        <table class="print-header-table">
+          <tr>
+            <td class="logo-cell">
+              <img src="Logo_of_Uttar_Pradesh_Police.png" class="print-logo" />
+            </td>
+            <td class="header-text-cell">
+              <h1>UTTAR PRADESH POLICE HEADQUARTERS, LUCKNOW</h1>
+              <h2>INTELLIGENCE & CRIMINAL DOSSIER REGISTER</h2>
+              <div class="confidential">CONFIDENTIAL — FOR DEPARTMENTAL SURVEILLANCE & INTELLIGENCE USE ONLY</div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- 2. Personal Profile Section (Tabular with Mugshot Embedded on the right) -->
+        <h3 class="print-section-title">SECTION I: SUBJECT PROFILE & IDENTIFICATION</h3>
+        <table class="print-data-table profile-table">
+          <tr>
+            <th>Criminal ID Number</th>
+            <td><strong>${dossier.id}</strong></td>
+            <td rowspan="8" class="mugshot-cell">
+              <img class="print-mugshot" src="${dossier.personalInfo.photograph}" alt="${dossier.personalInfo.name}"
+                onerror="this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;150&quot; height=&quot;190&quot;><rect width=&quot;150&quot; height=&quot;190&quot; fill=&quot;%23f1f5f9&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; text-anchor=&quot;middle&quot; fill=&quot;%23475569&quot; font-size=&quot;48&quot;>${dossier.personalInfo.name[0]}</text></svg>'" />
+              <div class="print-badge print-badge-${dossier.status.toLowerCase().replace(/\s+/g, '-')}">${dossier.status}</div>
+              <div class="risk-label">Threat Level: <strong>${risk}/100</strong></div>
+            </td>
+          </tr>
+          <tr>
+            <th>Full Legal Name</th>
+            <td><strong>${dossier.personalInfo.name}</strong></td>
+          </tr>
+          <tr>
+            <th>Alias / Nickname</th>
+            <td>${dossier.personalInfo.aliasName || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Father's Name</th>
+            <td>${dossier.personalInfo.fatherName || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Date of Birth & Age</th>
+            <td>${dossier.personalInfo.dob} (Age ${dossier.personalInfo.age})</td>
+          </tr>
+          <tr>
+            <th>Mobile Phone Number</th>
+            <td>${dossier.personalInfo.mobile || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Aadhaar Number (UID)</th>
+            <td>${dossier.personalInfo.aadhaar || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Last Known Address</th>
+            <td>${dossier.personalInfo.address || 'N/A'}</td>
+          </tr>
+        </table>
+
+        <!-- 3. Biometrics and Description Table -->
+        <h3 class="print-section-title">SECTION II: BIOMETRIC REGISTRATION & PHYSICAL MARKS</h3>
+        <table class="print-data-table">
+          <tr>
+            <th>Fingerprints Status</th>
+            <td>🔐 ${dossier.biometrics.fingerprints || 'N/A'}</td>
+            <th>Physical Height</th>
+            <td>${dossier.biometrics.height || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Face Match Index</th>
+            <td>👤 ${dossier.biometrics.faceImage || 'N/A'}</td>
+            <th>Physical Weight</th>
+            <td>${dossier.biometrics.weight || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Registered Blood Group</th>
+            <td>${dossier.biometrics.bloodGroup || 'N/A'}</td>
+            <th>Eye Colour</th>
+            <td>${dossier.biometrics.eyeColor || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Identification Marks</th>
+            <td colspan="3">${dossier.biometrics.identificationMarks || 'N/A'}</td>
+          </tr>
+        </table>
+
+        <!-- 4. Surveillance Table -->
+        <h3 class="print-section-title">SECTION III: SURVEILLANCE PARAMETERS & INTELLIGENCE</h3>
+        <table class="print-data-table">
+          <tr>
+            <th>History Sheet No.</th>
+            <td><strong>${dossier.surveillance.historySheetNumber || 'N/A'}</strong></td>
+            <th>Surveillance Class</th>
+            <td>${dossier.surveillance.surveillanceCategory || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Surveillance Notes</th>
+            <td colspan="3">${dossier.surveillance.surveillanceNotes || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Beat Officer Remarks</th>
+            <td colspan="3">${dossier.surveillance.beatOfficerRemarks || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Intelligence Bureau Inputs</th>
+            <td colspan="3" style="color: #991b1b; font-weight: 500;">🔍 ${dossier.surveillance.intelligenceInputs || 'N/A'}</td>
+          </tr>
+        </table>
+
+        <!-- 5. FIR Criminal Offense Records -->
+        <h3 class="print-section-title">SECTION IV: CRIMINAL OFFENSE HISTORY (REGISTERED FIRs)</h3>
+        ${dossier.history.length === 0 ? '<div class="print-no-record">No registered FIR records found on file.</div>' : `
+        <table class="print-data-table list-table">
+          <thead>
+            <tr>
+              <th style="width: 120px;">FIR / Crime No.</th>
+              <th style="width: 140px;">Police Station & Dist.</th>
+              <th>IPC / Law Sections</th>
+              <th style="width: 100px;">Bail Status</th>
+              <th style="width: 180px;">Court & Case Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dossier.history.map(h => `
+              <tr>
+                <td><strong>${h.firNumber}</strong><br/>${h.crimeNumber}</td>
+                <td>${h.policeStation} PS<br/>District: ${h.district.toUpperCase()}</td>
+                <td style="color:#7f1d1d; font-weight:500;">${h.sections}</td>
+                <td>${h.bailStatus}</td>
+                <td>${h.courtCaseDetails}<br/><em>${h.chargeSheetStatus}</em></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        `}
+
+        <!-- 6. Gang Affiliation Table -->
+        <h3 class="print-section-title">SECTION V: GANG SYNDICATE MEMBERSHIP & LINKS</h3>
+        <table class="print-data-table">
+          <tr>
+            <th>Syndicate/Gang Name</th>
+            <td><strong style="color:#7f1d1d;">${dossier.gangInfo.gangName || 'N/A'}</strong></td>
+            <th>Gang Leader</th>
+            <td>${dossier.gangInfo.gangLeader || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Operating Jurisdiction</th>
+            <td colspan="3">${dossier.gangInfo.areaOfOperation || 'N/A'}</td>
+          </tr>
+          <tr>
+            <th>Known Associates</th>
+            <td colspan="3">${dossier.gangInfo.gangMembers.join(', ') || 'None'}</td>
+          </tr>
+          ${dossier.gangInfo.networkMapping && dossier.gangInfo.networkMapping.length > 0 ? `
+          <tr>
+            <th>Syndicate Hierarchy Links</th>
+            <td colspan="3">
+              <table style="width: 100%; border-collapse: collapse; border: none; font-size: 11px;">
+                ${dossier.gangInfo.networkMapping.map(rel => `
+                  <tr style="border: none;">
+                    <td style="border: none; padding: 2px 0; width: 120px;"><strong>${rel.targetId}</strong></td>
+                    <td style="border: none; padding: 2px 0; color: #475569;">—</td>
+                    <td style="border: none; padding: 2px 0;">${rel.relation}</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </td>
+          </tr>
+          ` : ''}
+        </table>
+
+        <!-- 7. Attached Properties Table -->
+        <h3 class="print-section-title page-break-before">SECTION VI: ATTACHED ASSETS & PROPERTIES (SEC 14 GANGSTER ACT)</h3>
+        ${dossier.propertyDetails.length === 0 ? '<div class="print-no-record">No property attachment registrations found.</div>' : `
+        <table class="print-data-table list-table">
+          <thead>
+            <tr>
+              <th style="width: 120px;">Asset Class</th>
+              <th>Property Location Details</th>
+              <th style="width: 120px;">Estimated Valuation</th>
+              <th style="width: 180px;">Legal Attachment Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dossier.propertyDetails.map(p => `
+              <tr>
+                <td><strong>${p.type}</strong></td>
+                <td>${p.address}</td>
+                <td style="color:#14532d; font-weight:600;">${p.estimatedValue}</td>
+                <td>${p.status}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        `}
+
+        <!-- 8. Vehicles Table -->
+        <h3 class="print-section-title">SECTION VII: REGISTERED VEHICLE ASSETS</h3>
+        ${dossier.vehicleDetails.length === 0 ? '<div class="print-no-record">No registered vehicle assets found.</div>' : `
+        <table class="print-data-table list-table">
+          <thead>
+            <tr>
+              <th style="width: 150px;">Registration Number</th>
+              <th style="width: 180px;">Vehicle Class & Description</th>
+              <th>Ownership / Registration Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dossier.vehicleDetails.map(v => `
+              <tr>
+                <td><strong style="font-family:monospace; font-size:14px;">${v.vehicleNumber}</strong></td>
+                <td>${v.vehicleType}</td>
+                <td>${v.registrationDetails}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        `}
+
+        <!-- 9. AI Threat Pattern Table -->
+        <h3 class="print-section-title">SECTION VIII: AI-GENERATED CRIME PATTERN & FORECAST</h3>
+        <table class="print-data-table">
+          <tr>
+            <th style="vertical-align: middle;">Crime Pattern Analysis</th>
+            <td>${ai.pattern}</td>
+          </tr>
+          <tr>
+            <th style="vertical-align: middle;">Predictive Intelligence</th>
+            <td>${ai.forecast}</td>
+          </tr>
+          <tr>
+            <th style="vertical-align: middle;">Tactical Recommendations</th>
+            <td>${ai.suggestions}</td>
+          </tr>
+        </table>
+
+        <!-- 10. Signature & Validation Table -->
+        <table class="print-signature-table">
+          <tr>
+            <td style="width: 33%;">
+              <div class="sig-line"></div>
+              <p>PREPARED BY</p>
+              <p><strong>${dossier.submittedBy}</strong></p>
+              <p class="sig-subtitle">Beat Officer / PS In-Charge</p>
+            </td>
+            <td style="width: 33%;">
+              <div class="sig-line"></div>
+              <p>VERIFIED BY</p>
+              <p><strong>${dossier.verifiedBy || 'Supervising Officer'}</strong></p>
+              <p class="sig-subtitle">Sub-Divisional CO / ACP</p>
+            </td>
+            <td style="width: 33%;">
+              <div class="sig-line"></div>
+              <p>APPROVING AUTHORITY</p>
+              <p><strong>${dossier.approvedBy || 'SP Crime / Commissioner'}</strong></p>
+              <p class="sig-subtitle">District Police Nodal Authority</p>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="3" class="generation-meta-cell">
+              Record Generated: ${new Date().toLocaleString()} | CDIMS Central Registry, Uttar Pradesh Police Headquarters, Lucknow
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+  }
+
+  setTimeout(() => window.print(), 300);
 }
 
 // Close modal on overlay click
-document.getElementById('dossier-modal').addEventListener('click', function(e) {
+document.getElementById('dossier-modal').addEventListener('click', function (e) {
   if (e.target === this) closeDossierModal();
 });
 
@@ -3045,12 +3646,12 @@ function openDossierById(id) {
     }, 150);
   }
 }
-document.getElementById('add-dossier-modal').addEventListener('click', function(e) {
+document.getElementById('add-dossier-modal').addEventListener('click', function (e) {
   if (e.target === this) closeAddDossierModal();
 });
 
 // Close notification panel on outside click
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
   if (notifPanelOpen && !e.target.closest('#notif-panel') && !e.target.closest('.header-icon-btn')) {
     toggleNotifPanel();
   }
@@ -3067,7 +3668,7 @@ let facerecogStream = null;
 
 function renderFaceRecogPage() {
   const criminals = getDossiers().slice(0, 20);
-  
+
   const demoCards = criminals.map(c => `
     <div class="demo-profile-card" onclick="simulateDemoMatch('${c.id}')">
       <img src="${c.personalInfo.photograph}" class="demo-profile-photo" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(c.personalInfo.name)}&background=1a2f52&color=eeb902&size=100'" />
@@ -3158,7 +3759,7 @@ function renderFaceRecogPage() {
 
 async function initFaceRecog() {
   console.log("Initializing Face Hashing Engine...");
-  
+
   // Clear any existing stream
   if (facerecogStream) {
     facerecogStream.getTracks().forEach(track => track.stop());
@@ -3171,20 +3772,20 @@ async function initFaceRecog() {
   // Setup file upload listener
   const fileInput = document.getElementById('face-upload-input');
   if (fileInput) {
-    fileInput.addEventListener('change', function(e) {
+    fileInput.addEventListener('change', function (e) {
       const file = e.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = function(evt) {
+      reader.onload = function (evt) {
         // Stop camera if running
         stopWebcam();
-        
+
         const previewImg = document.getElementById('scanner-preview-img');
         previewImg.src = evt.target.result;
         previewImg.style.display = 'block';
         document.getElementById('scanner-video').style.display = 'none';
-        
+
         triggerScan(evt.target.result);
       };
       reader.readAsDataURL(file);
@@ -3237,19 +3838,19 @@ function computeAverageHash(imgEl) {
   ctx.drawImage(imgEl, 0, 0, 8, 8);
   const imgData = ctx.getImageData(0, 0, 8, 8);
   const data = imgData.data;
-  
+
   let grayscale = [];
   let sum = 0;
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
-    const g = data[i+1];
-    const b = data[i+2];
+    const g = data[i + 1];
+    const b = data[i + 2];
     const gray = 0.299 * r + 0.587 * g + 0.114 * b;
     grayscale.push(gray);
     sum += gray;
   }
   const avg = sum / 64;
-  
+
   let hash = '';
   for (let i = 0; i < 64; i++) {
     hash += grayscale[i] >= avg ? '1' : '0';
@@ -3282,7 +3883,7 @@ async function toggleWebcam() {
   const video = document.getElementById('scanner-video');
   const previewImg = document.getElementById('scanner-preview-img');
   const webcamCtrls = document.getElementById('webcam-controls');
-  
+
   if (facerecogStream) {
     stopWebcam();
     writeToConsole("[INFO] Webcam stream terminated.");
@@ -3294,7 +3895,7 @@ async function toggleWebcam() {
       previewImg.style.display = 'none';
       webcamCtrls.style.display = 'flex';
       writeToConsole("[INFO] Live webcam connection established. Align face in target box.");
-      
+
       // Draw mock face bounding box
       const box = document.getElementById('scanner-face-box');
       box.className = 'scanner-face-box active';
@@ -3313,7 +3914,7 @@ function stopWebcam() {
   const previewImg = document.getElementById('scanner-preview-img');
   const webcamCtrls = document.getElementById('webcam-controls');
   const box = document.getElementById('scanner-face-box');
-  
+
   if (facerecogStream) {
     facerecogStream.getTracks().forEach(track => track.stop());
     facerecogStream = null;
@@ -3330,44 +3931,44 @@ function captureAndScan() {
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth || 320;
   canvas.height = video.videoHeight || 320;
-  
+
   const ctx = canvas.getContext('2d');
   // Mirror capture since video is mirrored
   ctx.translate(canvas.width, 0);
   ctx.scale(-1, 1);
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
+
   const imgDataUrl = canvas.toDataURL('image/jpeg');
   stopWebcam();
-  
+
   const previewImg = document.getElementById('scanner-preview-img');
   previewImg.src = imgDataUrl;
-  
+
   triggerScan(imgDataUrl);
 }
 
 function triggerScan(imgDataUrl) {
   const laser = document.getElementById('scanner-laser-line');
   const box = document.getElementById('scanner-face-box');
-  
+
   laser.className = 'scanner-laser active';
   box.className = 'scanner-face-box active';
   box.style.left = '25%';
   box.style.top = '25%';
   box.style.width = '50%';
   box.style.height = '50%';
-  
+
   const consoleContainer = document.getElementById('scanner-console');
   if (consoleContainer) consoleContainer.innerHTML = '';
-  
+
   writeToConsole("[INFO] Initializing AFRS engine...", "yellow");
-  
+
   setTimeout(() => writeToConsole("[INFO] Detecting human faces in view frame..."), 400);
   setTimeout(() => writeToConsole("[INFO] Facial structures detected. Bounding coordinates locked."), 800);
   setTimeout(() => writeToConsole("[INFO] Extracting facial vectors & computing gray hashes..."), 1200);
   setTimeout(() => writeToConsole("[INFO] Hashing complete. Querying state criminal templates..."), 1600);
   setTimeout(() => writeToConsole("[INFO] Analyzing structural Hamming distances..."), 2000);
-  
+
   setTimeout(() => {
     laser.className = 'scanner-laser';
     executeFaceRecognition(imgDataUrl);
@@ -3376,7 +3977,7 @@ function triggerScan(imgDataUrl) {
 
 async function executeFaceRecognition(uploadedImgDataUrl) {
   writeToConsole("[INFO] Running template database matching...");
-  
+
   const uploadedImg = new Image();
   uploadedImg.onload = async () => {
     let uploadHash = '';
@@ -3386,13 +3987,13 @@ async function executeFaceRecognition(uploadedImgDataUrl) {
       writeToConsole("[ERROR] Image hashing failed.", "red");
       return;
     }
-    
+
     let bestMatch = null;
     let minDistance = 65; // Max possible is 64
-    
+
     // Ensure database hashes are precomputed
     await precomputeCriminalHashes();
-    
+
     const criminals = getDossiers().slice(0, 20);
     for (const c of criminals) {
       const cHash = cachedCriminalHashes[c.id];
@@ -3404,7 +4005,7 @@ async function executeFaceRecognition(uploadedImgDataUrl) {
         }
       }
     }
-    
+
     displayMatchResult(bestMatch, minDistance, uploadedImgDataUrl);
   };
   uploadedImg.src = uploadedImgDataUrl;
@@ -3415,29 +4016,29 @@ function simulateDemoMatch(criminalId) {
   const criminals = getDossiers().slice(0, 20);
   const criminal = criminals.find(c => c.id === criminalId);
   if (!criminal) return;
-  
+
   const previewImg = document.getElementById('scanner-preview-img');
   previewImg.src = criminal.personalInfo.photograph;
-  
+
   const laser = document.getElementById('scanner-laser-line');
   const box = document.getElementById('scanner-face-box');
-  
+
   laser.className = 'scanner-laser active';
   box.className = 'scanner-face-box active';
   box.style.left = '25%';
   box.style.top = '25%';
   box.style.width = '50%';
   box.style.height = '50%';
-  
+
   const consoleContainer = document.getElementById('scanner-console');
   if (consoleContainer) consoleContainer.innerHTML = '';
-  
+
   writeToConsole(`[INFO] Demo scan triggered for dossier: ${criminalId}`, "yellow");
   writeToConsole("[INFO] Processing local mugshot asset...");
-  
+
   setTimeout(() => writeToConsole("[INFO] Generating exact vector model..."), 500);
   setTimeout(() => writeToConsole("[INFO] Querying system database templates..."), 1000);
-  
+
   setTimeout(() => {
     laser.className = 'scanner-laser';
     // For demo simulation matching, Hamming distance is 0 (100% exact match)
@@ -3448,19 +4049,19 @@ function simulateDemoMatch(criminalId) {
 function displayMatchResult(criminal, distance, uploadedImgUrl) {
   const resultsPanel = document.getElementById('facerecog-results-panel');
   if (!resultsPanel) return;
-  
+
   // Distance to similarity percentage mapping
   // 0 distance = 100% match. 12 or more distance is basically no match (<80%)
   const similarity = Math.max(0, Math.round(((64 - distance) / 64) * 100));
   const isMatch = similarity >= 80;
-  
+
   if (isMatch && criminal) {
     writeToConsole(`[MATCH FOUND] ${criminal.personalInfo.name} matched with ${similarity}% similarity!`, "yellow");
     addAuditLog(currentUser.username, currentUser.role, "Face Match Detected", `Face recognized: ${criminal.personalInfo.name} (${criminal.id}) - Similarity: ${similarity}%`);
-    
+
     const risk = calculateRiskScore(criminal);
     const sections = criminal.history.map(h => h.sections).join(', ');
-    
+
     resultsPanel.innerHTML = `
       <div class="facerecog-card-header">
         <h3 class="facerecog-card-title">🚨 MATCH DETECTED (${similarity}% Confidence)</h3>
@@ -3524,7 +4125,7 @@ function displayMatchResult(criminal, distance, uploadedImgUrl) {
   } else {
     writeToConsole("[NO MATCH FOUND] Query image distance is too high from indexed templates.", "red");
     addAuditLog(currentUser.username, currentUser.role, "Face Recognition Run", `Scan run: No matching records found (Best match was ${criminal ? criminal.personalInfo.name : 'None'} at ${similarity}%)`);
-    
+
     resultsPanel.innerHTML = `
       <div class="facerecog-card-header">
         <h3 class="facerecog-card-title" style="color:var(--red-400);">❌ NO MATCH DETECTED</h3>
