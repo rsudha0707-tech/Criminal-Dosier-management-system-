@@ -2946,4 +2946,256 @@ body::before {
   }
 }
 
+/* =========================================================
+   CDIMS RESPONSIVE DESIGN OVERRIDES & LAYOUT FIXES
+   ========================================================= */
+
+/* Hamburger Sidebar Toggle button */
+.sidebar-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--upp-gold, #e5b839);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 6px 12px;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  transition: var(--transition);
+  z-index: 101;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+.sidebar-toggle:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--upp-gold, #e5b839);
+}
+
+/* Sidebar Backdrop Overlay */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 8, 19, 0.7);
+  backdrop-filter: blur(5px);
+  z-index: 99;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.sidebar-overlay.active {
+  display: block;
+  opacity: 1;
+}
+
+/* Village layout grid */
+.village-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+}
+
+/* Network dashboard panels */
+.network-layout-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.network-graph-panel {
+  flex: 0 0 70%;
+  height: 100%;
+  background: var(--navy-950);
+  border-right: 1px solid var(--glass-border);
+  position: relative;
+  user-select: none;
+  overflow: hidden;
+}
+.network-info-panel {
+  flex: 0 0 30%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(6, 19, 41, 0.95);
+  padding: 16px 18px;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+  border-left: 1px solid var(--glass-border);
+}
+
+/* General horizontal scroll safety wrapper */
+.table-scroll-container, [style*="overflow-x:auto"] {
+  overflow-x: auto !important;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* General text wrapping adjustments to prevent clipping */
+.stat-label, .user-name, .user-role, .user-station, .header-title h2, .header-title p, .alert-title, .alert-body {
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* Banners / flex boxes adjustments */
+.quick-action-card, .pending-banner {
+  flex-wrap: wrap;
+  gap: 12px !important;
+}
+
+/* Responsive breakdowns */
+@media (max-width: 1100px) {
+  /* Ensure dashboard column structures don't squeeze too early */
+  .dashboard-row-two-col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 992px) {
+  /* Table Header modifications */
+  .table-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 14px !important;
+    padding: 16px 16px !important;
+  }
+  .table-actions {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .table-actions > * {
+    flex: 1 1 calc(50% - 8px) !important;
+    min-width: 120px !important;
+  }
+  .table-actions .search-bar {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+  
+  /* Network layout stack */
+  .network-layout-container {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  .network-graph-panel {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    height: 450px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--glass-border) !important;
+  }
+  .network-info-panel {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    border-left: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Sidebar Off-canvas */
+  .sidebar-toggle {
+    display: flex !important;
+  }
+  .sidebar {
+    transform: translateX(-100%) !important;
+    box-shadow: none !important;
+    position: fixed !important;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1000 !important; /* Ensure it floats over other elements */
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+    box-shadow: var(--shadow-lg), var(--shadow-gold) !important;
+  }
+  .main-wrapper {
+    margin-left: 0 !important;
+  }
+  
+  /* Header clean layout */
+  .header {
+    padding: 0 16px !important;
+    gap: 10px !important;
+  }
+  .header-branding {
+    gap: 8px !important;
+  }
+  .header-title h2 {
+    font-size: 15px !important;
+  }
+  .header-title p {
+    display: none !important;
+  }
+  .up-police-logo-img-small {
+    height: 32px !important;
+    width: 32px !important;
+  }
+  
+  /* Village layout stack */
+  .village-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  
+  /* Modal responsive sizes */
+  .modal {
+    width: calc(100% - 20px) !important;
+    margin: 10px auto !important;
+  }
+  .criminal-photo-large {
+    max-width: 180px !important;
+    margin: 0 auto 12px auto !important;
+    display: block !important;
+  }
+}
+
+@media (max-width: 576px) {
+  /* Double column stats wrap into single column on extra-small mobile */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Table action elements full-width */
+  .table-actions > * {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+  
+  /* Modals and comparison panels */
+  .match-comparison-pane {
+    grid-template-columns: 1fr !important;
+  }
+  .info-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Login screen card fluid scale */
+  .login-card {
+    width: calc(100% - 32px) !important;
+    padding: 28px 20px !important;
+  }
+  .login-dept {
+    font-size: 11px !important;
+    padding: 8px 10px !important;
+    white-space: normal !important;
+  }
+  .quick-action-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    text-align: center !important;
+  }
+  .quick-action-card button {
+    width: 100% !important;
+  }
+}
+
 

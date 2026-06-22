@@ -11,6 +11,15 @@ let currentView = 'dashboard';
 let charts = {};
 let notifPanelOpen = false;
 
+window.toggleMobileSidebar = function() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (sidebar && overlay) {
+    sidebar.classList.toggle('mobile-open');
+    overlay.classList.toggle('active');
+  }
+};
+
 // Base API URL helper to connect to port 5001 if served elsewhere (e.g. Live Server or file://)
 function getApiUrl(path) {
   const isLocalhost5001 = window.location.port === '5001';
@@ -220,6 +229,12 @@ async function navigateTo(view) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const navEl = document.getElementById(`nav-${view}`);
   if (navEl) navEl.classList.add('active');
+
+  // Close mobile sidebar on navigation
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (sidebar) sidebar.classList.remove('mobile-open');
+  if (overlay) overlay.classList.remove('active');
 
   // Destroy old charts
   Object.values(charts).forEach(c => { try { c.destroy(); } catch (e) { } });
@@ -2979,7 +2994,7 @@ function renderVillageDirectory() {
   return `
     ${filtersHtml}
     
-    <div class="village-layout" style="display:grid; grid-template-columns: 280px 1fr; gap: 20px;">
+    <div class="village-layout">
       <!-- Left: Village List -->
       <div class="village-list-panel" style="display:flex; flex-direction:column; gap:10px;">
         <h4 style="font-size:12px; font-weight:800; color:var(--text-secondary); text-transform:uppercase; border-bottom:1px solid var(--glass-border); padding-bottom:8px;">🏘️ Villages (${villages.length})</h4>

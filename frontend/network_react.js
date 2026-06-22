@@ -1316,8 +1316,7 @@ function ReactNetworkGraph() {
         </div>
       </div>
 
-      {/* BODY SECTION (Split in same DIV) */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+      <div className="network-layout-container">
         
         {/* LEFT (70%): Interactive Relationship Graph */}
         <div 
@@ -1326,15 +1325,9 @@ function ReactNetworkGraph() {
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onWheel={handleWheel}
+          className="network-graph-panel"
           style={{
-            flex: '0 0 70%',
-            height: '100%',
-            background: 'var(--navy-950)',
-            borderRight: '1px solid var(--glass-border)',
-            position: 'relative',
-            cursor: isDraggingCanvas ? 'grabbing' : 'grab',
-            userSelect: 'none',
-            overflow: 'hidden'
+            cursor: isDraggingCanvas ? 'grabbing' : 'grab'
           }}
         >
           <svg style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}>
@@ -1655,18 +1648,7 @@ function ReactNetworkGraph() {
           )}
         </div>
 
-        {/* RIGHT (30%): Detailed Info Panel */}
-        <div style={{
-          flex: '0 0 30%',
-          height: '100%',
-          background: 'rgba(6, 19, 41, 0.95)',
-          padding: '16px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          overflowY: 'auto',
-          borderLeft: '1px solid var(--glass-border)'
-        }}>
+        <div className="network-info-panel">
           {selectedNode.type === 'group' ? (
             /* GANG PROFILE VIEW */
             <div>

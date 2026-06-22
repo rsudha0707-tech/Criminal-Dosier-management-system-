@@ -106,6 +106,7 @@
 
       <!-- HEADER -->
       <header class="header" id="main-header">
+        <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleMobileSidebar()" title="Toggle Sidebar">☰</button>
         <div class="header-branding" style="display: flex; align-items: center; gap: 12px;">
           <div class="header-emblem-wrapper" style="display: flex; align-items: center;">
             <img src="Logo_of_Uttar_Pradesh_Police.png"
@@ -331,6 +332,9 @@
   </div>
 
   <div id="dossier-print-area"></div>
+
+  <!-- MOBILE SIDEBAR OVERLAY -->
+  <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
   <script src="network_react.compiled.js"></script>
   <script src="map.js"></script>
