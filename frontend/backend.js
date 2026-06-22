@@ -30,6 +30,13 @@ let _sb = null;   // Supabase client
 let _useSupabase = false;  // true once credentials validated
 let _cache = [];     // in-memory dossier array
 let _auditCache = [];     // in-memory audit log array
+let _usersCache = JSON.parse(localStorage.getItem('cdims_users')) || [
+  { name: 'SHO Rajiv Sharma', username: 'sho_hazratganj', role: 'Police Station User', level: 'L1', station: 'Hazratganj PS, Lucknow', status: 'Active' },
+  { name: 'IO Priya Singh', username: 'io_chowk', role: 'Police Station User', level: 'L1', station: 'Chowk PS, Lucknow', status: 'Active' },
+  { name: 'CO Prashant Mishra', username: 'co_lucknow', role: 'District Nodal Officer', level: 'L2', station: 'CO Office, Lucknow', status: 'Active' },
+  { name: 'SP Crime Varanasi', username: 'sp_crime_vns', role: 'District Nodal Officer', level: 'L2', station: 'SP Office, Varanasi', status: 'Active' },
+  { name: 'DG Intelligence (PHQ)', username: 'phq_admin', role: 'State Administrator', level: 'L3', station: 'PHQ Lucknow', status: 'Active' }
+];
 let _initPromise = null;   // singleton promise for initDatabase()
 
 // ──────────────────────────────────────────────────────────
@@ -1140,6 +1147,65 @@ async function returnDossierForCorrection(id, remarks, user) {
   return true;
 }
 
+async function dbAddUser(user) {
+  const mappedUser = {
+    name: user.name,
+    username: user.username,
+    role: user.role,
+    level: 'L' + user.level,
+    station: user.station || 'PHQ',
+    status: 'Active'
+  };
+  
+  const idx = _usersCache.findIndex(u => u.username === user.username);
+  if (idx === -1) {
+    _usersCache.push(mappedUser);
+  } else {
+    _usersCache[idx] = mappedUser;
+  }
+  localStorage.setItem('cdims_users', JSON.stringify(_usersCache));
+
+  if (_useSupabase && _sb) {
+    try {
+      const { error } = await _sb.from('cdims_users').insert([user]);
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error('[CDIMS] dbAddUser Supabase error:', e.message);
+      throw e;
+    }
+  }
+  return true;
+}
+
+async function getSystemUsers() {
+  if (_useSupabase && _sb) {
+    try {
+      console.info('[CDIMS Backend] Fetching cdims_users from Supabase...');
+      const { data, error } = await _sb.from('cdims_users').select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        _usersCache = data.map(u => ({
+          name: u.name,
+          username: u.username,
+          role: u.role,
+          level: 'L' + u.level,
+          station: u.station || 'PHQ',
+          status: 'Active'
+        }));
+      }
+    } catch (e) {
+      console.warn('[CDIMS] Failed to fetch cdims_users from Supabase:', e.message);
+    }
+  } else {
+    const stored = localStorage.getItem('cdims_users');
+    if (stored) {
+      _usersCache = JSON.parse(stored);
+    }
+  }
+  return [..._usersCache];
+}
+
 // ══════════════════════════════════════════════════════════
 //  AUDIT LOGS
 // ══════════════════════════════════════════════════════════
@@ -1290,7 +1356,23 @@ function generateStatistics() {
 // Direct database login validation using Supabase client (for static hosting environments)
 async function dbLogin(username, password) {
   if (!_useSupabase || !_sb) {
-    return { success: false, message: 'Supabase client is not connected.' };
+    const localUser = _usersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
+    if (!localUser) {
+      return { success: false, message: 'Invalid username. User not found (offline).' };
+    }
+    const expectedPassword = localUser.password || 'up@1234';
+    if (password !== expectedPassword) {
+      return { success: false, message: 'Invalid password.' };
+    }
+    let levelNum = localUser.level;
+    if (typeof levelNum === 'string') {
+      levelNum = parseInt(levelNum.replace('L', ''), 10);
+    }
+    const userCopy = {
+      ...localUser,
+      level: levelNum
+    };
+    return { success: true, user: userCopy };
   }
   try {
     const { data, error } = await _sb
@@ -1485,6 +1567,8 @@ window.runCrimePatternAnalysis = runCrimePatternAnalysis;
 window.generateStatistics = generateStatistics;
 window.importDossiersFromCSVContent = importDossiersFromCSVContent;
 window.getDossierPhotos = getDossierPhotos;
+window.dbAddUser = dbAddUser;
+window.getSystemUsers = getSystemUsers;
 
 async function getDossierPhotos(dossierId) {
   const isGitHubPages = window.location.hostname.endsWith('github.io');

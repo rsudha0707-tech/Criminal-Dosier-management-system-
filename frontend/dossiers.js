@@ -538,6 +538,40 @@ const CDIMS_DB_VERSION = "v2-village";
 // In-memory cache variables for synchronizing with backend APIs
 let dossiersCache = null;
 let auditLogsCache = null;
+let usersCache = JSON.parse(localStorage.getItem('cdims_users')) || [
+  { name: 'SHO Rajiv Sharma', username: 'sho_hazratganj', role: 'Police Station User', level: 'L1', station: 'Hazratganj PS, Lucknow', status: 'Active' },
+  { name: 'IO Priya Singh', username: 'io_chowk', role: 'Police Station User', level: 'L1', station: 'Chowk PS, Lucknow', status: 'Active' },
+  { name: 'CO Prashant Mishra', username: 'co_lucknow', role: 'District Nodal Officer', level: 'L2', station: 'CO Office, Lucknow', status: 'Active' },
+  { name: 'SP Crime Varanasi', username: 'sp_crime_vns', role: 'District Nodal Officer', level: 'L2', station: 'SP Office, Varanasi', status: 'Active' },
+  { name: 'DG Intelligence (PHQ)', username: 'phq_admin', role: 'State Administrator', level: 'L3', station: 'PHQ Lucknow', status: 'Active' }
+];
+
+async function dbAddUser(user) {
+  const mappedUser = {
+    name: user.name,
+    username: user.username,
+    role: user.role,
+    level: 'L' + user.level,
+    station: user.station || 'PHQ',
+    status: 'Active'
+  };
+  const idx = usersCache.findIndex(u => u.username === user.username);
+  if (idx === -1) {
+    usersCache.push(mappedUser);
+  } else {
+    usersCache[idx] = mappedUser;
+  }
+  localStorage.setItem('cdims_users', JSON.stringify(usersCache));
+  return true;
+}
+
+async function getSystemUsers() {
+  const stored = localStorage.getItem('cdims_users');
+  if (stored) {
+    usersCache = JSON.parse(stored);
+  }
+  return [...usersCache];
+}
 
 // Asynchronous synchronization with backend Supabase APIs
 async function syncWithBackend(user) {
@@ -973,3 +1007,5 @@ window.calculateRiskScore = calculateRiskScore;
 window.runCrimePatternAnalysis = runCrimePatternAnalysis;
 window.generateStatistics = generateStatistics;
 window.syncWithBackend = syncWithBackend;
+window.dbAddUser = dbAddUser;
+window.getSystemUsers = getSystemUsers;

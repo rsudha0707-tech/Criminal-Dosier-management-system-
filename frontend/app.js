@@ -336,6 +336,7 @@ async function navigateTo(view) {
       header.textContent = '👤 ' + t('users');
       headerSub.textContent = 'User management — roles, stations, access control';
       content.innerHTML = renderUsersPage();
+      loadUsersTableAsync();
       break;
     default:
       content.innerHTML = '<div class="empty-state"><div class="empty-icon">🚧</div><div class="empty-title">Page Under Construction</div></div>';
@@ -1197,17 +1198,16 @@ window.printVillageCriminals = function(station, village) {
 /**
  * printUserList() — prints the User Management list.
  */
-window.printUserList = function() {
-  const mockUsers = [
-    { name: 'SHO Rajiv Sharma', username: 'sho_hazratganj', role: 'Police Station User', level: 'L1', station: 'Hazratganj PS, Lucknow', status: 'Active' },
-    { name: 'IO Priya Singh', username: 'io_chowk', role: 'Police Station User', level: 'L1', station: 'Chowk PS, Lucknow', status: 'Active' },
-    { name: 'CO Prashant Mishra', username: 'co_lucknow', role: 'District Nodal Officer', level: 'L2', station: 'CO Office, Lucknow', status: 'Active' },
-    { name: 'SP Crime Varanasi', username: 'sp_crime_vns', role: 'District Nodal Officer', level: 'L2', station: 'SP Office, Varanasi', status: 'Active' },
-    { name: 'DG Intelligence (PHQ)', username: 'phq_admin', role: 'State Administrator', level: 'L3', station: 'PHQ Lucknow', status: 'Active' }
-  ];
-  const cols = ['#', 'Name', 'Username', 'Role', 'Level', 'Station', 'Status'];
-  const rows = mockUsers.map((u, i) => [i + 1, u.name, u.username, u.role, u.level, u.station, u.status]);
-  printGridView('User Management List', 'All registered system users and their access levels', cols, rows);
+window.printUserList = async function() {
+  try {
+    const users = await window.getSystemUsers();
+    const cols = ['#', 'Name', 'Username', 'Role', 'Level', 'Station', 'Status'];
+    const rows = users.map((u, i) => [i + 1, u.name, u.username, u.role, u.level, u.station, u.status]);
+    printGridView('User Management List', 'All registered system users and their access levels', cols, rows);
+  } catch (err) {
+    console.error('Error printing user list:', err);
+    showToast('❌ Failed to fetch user list for printing', 'error');
+  }
 };
 
 // ══════════════════════════════════════════════════════════
@@ -2526,7 +2526,7 @@ function renderUsersPage() {
   return `
     <div class="table-card">
       <div class="table-header">
-        <div class="table-title">👤 User Management (${mockUsers.length} users)</div>
+        <div class="table-title" id="user-table-count">👤 User Management (${mockUsers.length} users)</div>
         <div class="table-actions">
           <button class="btn btn-primary btn-sm">➕ Add User</button>
           <button class="btn btn-secondary btn-sm" onclick="printUserList()" title="Print user list">🖨️ Print List</button>
@@ -2538,7 +2538,7 @@ function renderUsersPage() {
           <thead><tr>
             <th>User</th><th>Username</th><th>Role</th><th>Level</th><th>Station</th><th>Status</th><th>Actions</th>
           </tr></thead>
-          <tbody>
+          <tbody id="user-table-tbody">
             ${mockUsers.map(u => `
               <tr>
                 <td><div style="font-weight:700;">${u.name}</div></td>
@@ -2563,9 +2563,21 @@ function renderUsersPage() {
       <div class="chart-card" style="padding:16px;">
         <div style="font-size:13px; font-weight:700; margin-bottom:10px;">📊 Role Distribution</div>
         <div style="display:flex; flex-direction:column; gap:6px;">
-          <div class="district-bar-item"><div class="district-name" style="width:100px;">Station (L1)</div><div class="district-bar-wrap"><div class="district-bar-fill" style="width:40%;"></div></div><div class="district-count">2</div></div>
-          <div class="district-bar-item"><div class="district-name" style="width:100px;">District (L2)</div><div class="district-bar-wrap"><div class="district-bar-fill" style="width:40%;"></div></div><div class="district-count">2</div></div>
-          <div class="district-bar-item"><div class="district-name" style="width:100px;">PHQ (L3)</div><div class="district-bar-wrap"><div class="district-bar-fill" style="width:20%;"></div></div><div class="district-count">1</div></div>
+          <div class="district-bar-item">
+            <div class="district-name" style="width:100px;">Station (L1)</div>
+            <div class="district-bar-wrap"><div class="district-bar-fill" id="role-dist-l1-bar" style="width:40%;"></div></div>
+            <div class="district-count" id="role-dist-l1-count">2</div>
+          </div>
+          <div class="district-bar-item">
+            <div class="district-name" style="width:100px;">District (L2)</div>
+            <div class="district-bar-wrap"><div class="district-bar-fill" id="role-dist-l2-bar" style="width:40%;"></div></div>
+            <div class="district-count" id="role-dist-l2-count">2</div>
+          </div>
+          <div class="district-bar-item">
+            <div class="district-name" style="width:100px;">PHQ (L3)</div>
+            <div class="district-bar-wrap"><div class="district-bar-fill" id="role-dist-l3-bar" style="width:20%;"></div></div>
+            <div class="district-count" id="role-dist-l3-count">1</div>
+          </div>
         </div>
       </div>
       
@@ -2613,6 +2625,68 @@ function renderUsersPage() {
       </div>
     </div>
   `;
+}
+
+async function loadUsersTableAsync() {
+  const tbody = document.getElementById('user-table-tbody');
+  const countEl = document.getElementById('user-table-count');
+  if (!tbody) return;
+
+  try {
+    const users = await window.getSystemUsers();
+    
+    // Update total user count in title
+    if (countEl) {
+      countEl.textContent = `👤 User Management (${users.length} users)`;
+    }
+
+    // Render table rows
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td><div style="font-weight:700;">${u.name}</div></td>
+        <td><span style="font-family:monospace; color:var(--gold-400); font-size:12px;">${u.username}</span></td>
+        <td><span style="font-size:12px;">${u.role}</span></td>
+        <td><span class="badge ${u.level === 'L3' ? 'badge-wanted' : u.level === 'L2' ? 'badge-active' : 'badge-bail'}">${u.level}</span></td>
+        <td style="font-size:12px;">${u.station}</td>
+        <td><span class="badge badge-approved">✅ ${u.status}</span></td>
+        <td>
+          <div style="display:flex; gap:4px;">
+            <button class="btn btn-xs btn-secondary" onclick="showToast('Edit user: ${u.username}','info')">✏️</button>
+            <button class="btn btn-xs btn-danger" onclick="showToast('Deactivate user: ${u.username}','warning')">🚫</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    // Update Role Distribution bars
+    const l1Count = users.filter(u => u.level === 'L1' || u.level === 1 || u.level === '1').length;
+    const l2Count = users.filter(u => u.level === 'L2' || u.level === 2 || u.level === '2').length;
+    const l3Count = users.filter(u => u.level === 'L3' || u.level === 3 || u.level === '3').length;
+    const total = l1Count + l2Count + l3Count || 1;
+
+    const barL1 = document.getElementById('role-dist-l1-bar');
+    const txtL1 = document.getElementById('role-dist-l1-count');
+    const barL2 = document.getElementById('role-dist-l2-bar');
+    const txtL2 = document.getElementById('role-dist-l2-count');
+    const barL3 = document.getElementById('role-dist-l3-bar');
+    const txtL3 = document.getElementById('role-dist-l3-count');
+
+    if (barL1 && txtL1) {
+      barL1.style.width = `${Math.round((l1Count / total) * 100)}%`;
+      txtL1.textContent = l1Count;
+    }
+    if (barL2 && txtL2) {
+      barL2.style.width = `${Math.round((l2Count / total) * 100)}%`;
+      txtL2.textContent = l2Count;
+    }
+    if (barL3 && txtL3) {
+      barL3.style.width = `${Math.round((l3Count / total) * 100)}%`;
+      txtL3.textContent = l3Count;
+    }
+  } catch (err) {
+    console.error('Error loading users table:', err);
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--red-400);">❌ Failed to load users from database: ${err.message}</td></tr>`;
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3304,9 +3378,23 @@ async function doLogin() {
         return;
       }
     } catch (err) {
-      console.error("⚠️ Server connection failed:", err);
-      showToast("❌ Unable to connect to backend server. Database login required.", "error");
-      return;
+      console.warn("⚠️ Server connection failed. Attempting offline fallback login...", err);
+      showToast("⚠️ Server connection failed. Attempting offline fallback...", "warning");
+      
+      if (typeof window.dbLogin === 'function') {
+        const dbResult = await window.dbLogin(username, password);
+        if (dbResult.success && dbResult.user) {
+          currentUser = dbResult.user;
+          window.currentUser = currentUser;
+          showToast(`✅ Offline login successful. Welcome, ${currentUser.name}!`, 'success');
+        } else {
+          showToast(`❌ Offline login failed: ${dbResult.message || 'Invalid credentials'}`, 'error');
+          return;
+        }
+      } else {
+        showToast("❌ Unable to connect to backend server and offline login is not available.", "error");
+        return;
+      }
     }
   }
 
@@ -3348,45 +3436,66 @@ async function generateOfficerCredentials() {
   const isGitHubPages = window.location.hostname.endsWith('github.io');
   if (isGitHubPages) {
     showToast('✅ Credential generated successfully (Offline Mode)!', 'success');
-    const uPrefix = roleType === 'l1' ? 'sho_' : (roleType === 'l2' ? 'co_' : 'phq_');
-    const usernameGenerated = uPrefix + name.toLowerCase().replace(/\s+/g, '_');
-    const creds = {
-      name,
-      role: roleType === 'l1' ? 'Police Station User' : (roleType === 'l2' ? 'District Nodal Officer' : 'State Administrator'),
-      station: station || (roleType === 'l1' ? 'Hazratganj PS' : (roleType === 'l2' ? 'CO Office' : 'PHQ')),
-      district,
+    const uPrefix = roleType === 'police_station' ? 'ps_' : (roleType === 'sp_nodal' ? 'sp_' : 'phq_');
+    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10);
+    const randomNum = Math.floor(100 + Math.random() * 900);
+    const usernameGenerated = `${uPrefix}${cleanName}${randomNum}`;
+    const defaultPassword = 'up@1234';
+
+    const level = roleType === 'police_station' ? 1 : (roleType === 'sp_nodal' ? 2 : 3);
+    const role = roleType === 'police_station' ? 'Police Station User' : (roleType === 'sp_nodal' ? 'District Nodal Officer' : 'State Administrator');
+    const permissions = roleType === 'police_station' ? ['create', 'update', 'upload', 'search'] : (roleType === 'sp_nodal' ? ['view_all_district', 'verify', 'approve', 'return', 'reports', 'search'] : ['all']);
+
+    const newOfficer = {
       username: usernameGenerated,
-      password: 'up@' + Math.floor(1000 + Math.random() * 9000)
+      password: defaultPassword,
+      name,
+      role,
+      level,
+      station: station || (level === 2 ? 'SP Office, ' + district : level === 3 ? 'PHQ — UP Police Headquarters' : 'Police Station'),
+      district: district || 'all',
+      avatar: name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'O',
+      permissions
     };
 
-    const resultDiv = document.getElementById('gen-credentials-result');
-    resultDiv.style.display = 'block';
-    resultDiv.style.cssText = `
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid var(--gold-500);
-      background: rgba(238,185,2,0.06);
-      font-size: 11px;
-      line-height: 1.4;
-      text-align: left;
-    `;
-    resultDiv.innerHTML = `
-      <div style="font-weight:700; color:var(--gold-400); margin-bottom:4px;">🎫 GENERATED IDENTITY (OFFLINE DEMO):</div>
-      <div>👤 <strong>Name:</strong> ${creds.name}</div>
-      <div>👮 <strong>Role:</strong> ${creds.role}</div>
-      <div>📍 <strong>Office:</strong> ${creds.station} (${creds.district})</div>
-      <div style="margin-top:6px; border-top:1px dashed rgba(255,255,255,0.1); padding-top:6px;">
-        🔑 <strong style="color:var(--green-400);">Username:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${creds.username}</code><br/>
-        🔒 <strong style="color:var(--green-400);">Password:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${creds.password}</code>
-      </div>
-      <div style="font-size:9px; color:var(--text-muted); margin-top:6px;">
-        ⚠️ Offline Demo Mode. Credentials generated for this browser session only.
-      </div>
-    `;
+    try {
+      await window.dbAddUser(newOfficer);
+      
+      const resultDiv = document.getElementById('gen-credentials-result');
+      resultDiv.style.display = 'block';
+      resultDiv.style.cssText = `
+        margin-top: 10px;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid var(--gold-500);
+        background: rgba(238,185,2,0.06);
+        font-size: 11px;
+        line-height: 1.4;
+        text-align: left;
+      `;
+      resultDiv.innerHTML = `
+        <div style="font-weight:700; color:var(--gold-400); margin-bottom:4px;">🎫 GENERATED IDENTITY (OFFLINE PERSISTED):</div>
+        <div>👤 <strong>Name:</strong> ${newOfficer.name}</div>
+        <div>👮 <strong>Role:</strong> ${newOfficer.role}</div>
+        <div>📍 <strong>Office:</strong> ${newOfficer.station} (${newOfficer.district})</div>
+        <div style="margin-top:6px; border-top:1px dashed rgba(255,255,255,0.1); padding-top:6px;">
+          🔑 <strong style="color:var(--green-400);">Username:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${newOfficer.username}</code><br/>
+          🔒 <strong style="color:var(--green-400);">Password:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${newOfficer.password}</code>
+        </div>
+        <div style="font-size:9px; color:var(--text-muted); margin-top:6px;">
+          ⚠️ Offline Mode. Saved to localStorage and cdims_users.
+        </div>
+      `;
 
-    document.getElementById('gen-officer-name').value = '';
-    document.getElementById('gen-station').value = '';
+      // Clear input fields
+      document.getElementById('gen-officer-name').value = '';
+      document.getElementById('gen-station').value = '';
+      
+      // Refresh user management table
+      loadUsersTableAsync();
+    } catch (e) {
+      showToast('❌ Failed to save user offline: ' + e.message, 'error');
+    }
     return;
   }
 
@@ -3440,6 +3549,9 @@ async function generateOfficerCredentials() {
         // Clear input fields
         document.getElementById('gen-officer-name').value = '';
         document.getElementById('gen-station').value = '';
+        
+        // Refresh users list
+        loadUsersTableAsync();
       }
     } else {
       const err = await res.json();
