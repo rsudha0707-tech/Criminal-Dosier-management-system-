@@ -355,6 +355,16 @@ function renderDashboard() {
           <button class="btn btn-sm" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);" onclick="navigateTo('dossiers')">Verify Records</button>
         </div>` : ''}
 
+        ${currentUser.level === 1 ? `
+        <div class="quick-action-card" style="background:var(--glass-bg); border:1px solid var(--gold-500); padding:16px 20px; border-radius:var(--radius-md); margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 15px rgba(0,0,0,0.2); animation: fadeInModal 0.3s ease;">
+          <div>
+            <h3 style="font-size:14px; font-weight:800; color:var(--gold-400); margin:0 0 4px 0;">👮 Quick Action: Register Criminal Dossier / नया अपराधी डोजियर</h3>
+            <p style="font-size:11px; color:var(--text-secondary); margin:0;">Register a new history sheeter or active criminal under your station's jurisdiction.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAddDossierModal()">➕ Register New Dossier</button>
+        </div>
+        ` : ''}
+
         <div class="stats-grid-modern">
           ${statCardCompact('👥', stats.totalCriminals, t('totalCriminals'), '', "navigateToDossiersWithFilter('all')")}
           ${statCardCompact('🔴', stats.activeCriminals, t('activeCriminals'), 'danger', "navigateToDossiersWithFilter('active')")}
@@ -1087,7 +1097,10 @@ window.printDossierList = function() {
     d.id,
     d.status,
     d.gangInfo?.gangName || '—',
-    d.district || d.personalInfo?.district || '—',
+    (() => {
+      const rawDist = d.district || d.personalInfo?.district || '—';
+      return rawDist !== '—' ? rawDist.charAt(0).toUpperCase() + rawDist.slice(1) : '—';
+    })(),
     d.surveillance?.surveillanceCategory || '—',
     calculateRiskScore(d) + '/100',
     d.approvalStatus || '—',
@@ -1111,7 +1124,10 @@ window.printSearchResults = function() {
     d.id,
     d.status,
     d.gangInfo?.gangName || '—',
-    d.district || '—',
+    (() => {
+      const rawDist = d.district || d.personalInfo?.district || '—';
+      return rawDist !== '—' ? rawDist.charAt(0).toUpperCase() + rawDist.slice(1) : '—';
+    })(),
     d.surveillance?.surveillanceCategory || '—',
     calculateRiskScore(d) + '/100',
     d.history?.length || 0
@@ -1457,6 +1473,7 @@ function openDossierModal(dossier) {
           <div style="font-size:10px; color:var(--text-muted); margin-top:6px;">APPROVAL STATUS</div>
           <div style="margin-top:4px;">${approvalBadge(dossier.approvalStatus)}</div>
         </div>
+        <div id="modal-photos-gallery"></div>
         ${currentUser.level >= 2 && dossier.approvalStatus === 'Pending Verification' ? `
         <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
           <button class="btn btn-success btn-sm" onclick="quickApprove('${dossier.id}'); closeDossierModal();">✅ Approve</button>
@@ -1642,7 +1659,33 @@ function openDossierModal(dossier) {
   `;
 
   modal.classList.add('open');
+
+  // Load and display photos dynamically
+  const photoContainer = document.getElementById('modal-photos-gallery');
+  if (photoContainer && window.getDossierPhotos) {
+    window.getDossierPhotos(dossier.id).then(photos => {
+      if (photos && photos.length > 0) {
+        photoContainer.innerHTML = `
+          <div style="font-size:10px; color:var(--text-muted); margin-top:10px; margin-bottom:4px; text-transform:uppercase; font-weight:700;">ATTACHED IMAGES / संलग्न चित्र (${photos.length})</div>
+          <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; max-width:200px;">
+            ${photos.map((p, idx) => `
+              <img src="${p}" style="width:55px; height:70px; object-fit:cover; border-radius:4px; border:1px solid var(--glass-border); cursor:pointer; transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--gold-500)'" onmouseout="this.style.borderColor='var(--glass-border)'" onclick="window.updateModalPhotoPreview('${p.replace(/'/g, "\\'")}')" />
+            `).join('')}
+          </div>
+        `;
+      } else {
+        photoContainer.innerHTML = '';
+      }
+    }).catch(err => console.error("Error loading photos:", err));
+  }
 }
+
+window.updateModalPhotoPreview = function(src) {
+  const mainPhoto = document.querySelector('.criminal-photo-large');
+  if (mainPhoto) {
+    mainPhoto.src = src;
+  }
+};
 
 function switchModalTab(el, tabId) {
   el.closest('.modal-body').querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
@@ -2627,11 +2670,46 @@ async function submitNewDossier() {
     status: document.getElementById('f-status').value
   };
 
-  await addDossier(newDossier, currentUser);
+  if (selectedDossierPhotos.length > 0) {
+    newDossier.personalInfo.photograph = selectedDossierPhotos[0];
+  }
+
+  await addDossier(newDossier, currentUser, selectedDossierPhotos);
   closeAddDossierModal();
+  selectedDossierPhotos = [];
+  const previewContainer = document.getElementById('modal-photo-preview');
+  if (previewContainer) previewContainer.innerHTML = '';
+  document.getElementById('f-photos').value = '';
+
   showToast(`✅ Dossier for "${name}" created successfully! Pending district review.`, 'success');
   await navigateTo('dossiers');
 }
+
+let selectedDossierPhotos = [];
+window.handleModalPhotoSelect = function(event) {
+  const files = event.target.files;
+  const previewContainer = document.getElementById('modal-photo-preview');
+  if (!previewContainer) return;
+
+  previewContainer.innerHTML = '';
+  selectedDossierPhotos = [];
+
+  if (files) {
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64 = e.target.result;
+        selectedDossierPhotos.push(base64);
+
+        const img = document.createElement('img');
+        img.src = base64;
+        img.style.cssText = 'width: 55px; height: 70px; object-fit: cover; border-radius: 4px; border: 1px solid var(--glass-border);';
+        previewContainer.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+};
 
 // ══════════════════════════════════════════════════════════
 //  NOTIFICATION PANEL

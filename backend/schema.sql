@@ -230,3 +230,21 @@ VALUES
   ('phq_admin', 'up@1234', 'DG Intelligence (PHQ)', 'State Administrator', 3, 'PHQ — UP Police Headquarters', 'all', 'PH', '["all"]')
 ON CONFLICT (username) DO NOTHING;
 
+
+-- ──────────────────────────────────────────────────────────
+--  TABLE: cdims_dossier_photos
+--  Additional photos uploaded for a dossier
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cdims_dossier_photos (
+  id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  dossier_id  TEXT        NOT NULL REFERENCES cdims_dossiers(id) ON DELETE CASCADE,
+  photo_url   TEXT        NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE cdims_dossier_photos IS 'Attached photos for criminal dossiers';
+
+ALTER TABLE cdims_dossier_photos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "cdims_dossier_photos_open" ON cdims_dossier_photos;
+CREATE POLICY "cdims_dossier_photos_open" ON cdims_dossier_photos FOR ALL USING (true) WITH CHECK (true);
+

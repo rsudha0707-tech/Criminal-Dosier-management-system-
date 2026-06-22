@@ -3,8 +3,15 @@
   "version": "1.0.0",
   "description": "Criminal Dossier & Intelligence Management System root workspace helper",
   "scripts": {
-    "start": "npm start --prefix backend",
-    "dev": "npm run dev --prefix backend",
+    "start": "npm run build && npm start --prefix backend",
+    "dev": "concurrently \"npx babel frontend/network_react.js --out-file frontend/network_react.compiled.js --watch\" \"npm run dev --prefix backend\"",
+    "build": "npx babel frontend/network_react.js --out-file frontend/network_react.compiled.js",
     "install-backend": "npm install --prefix backend"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.24.7",
+    "@babel/core": "^7.24.7",
+    "@babel/preset-react": "^7.24.7",
+    "concurrently": "^8.2.2"
   }
 }

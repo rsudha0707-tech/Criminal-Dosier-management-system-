@@ -64,6 +64,7 @@ if (dbUrl && dbUrl.startsWith('postgresql://')) {
 
 // ── In-Memory Mock Database Fallbacks (for out-of-the-box local usage) ──
 let mockDossiers = [];
+let mockDossierPhotos = [];
 let mockUsers = [
   { username: 'sho_hazratganj', password: 'up@1234', name: 'SHO Rajiv Sharma', role: 'Police Station User', level: 1, station: 'Hazratganj PS, Lucknow', district: 'lucknow', avatar: 'RS', permissions: ['create', 'update', 'upload', 'search'] },
   { username: 'co_lucknow', password: 'up@1234', name: 'CO Prashant Mishra', role: 'District Nodal Officer', level: 2, station: 'CO Office, Lucknow', district: 'lucknow', avatar: 'PM', permissions: ['view_all_district', 'verify', 'approve', 'return', 'reports', 'search'] },
@@ -573,7 +574,7 @@ app.get('/api/dossiers', async (req, res) => {
 
 // 5. Add New Dossier
 app.post('/api/dossiers', async (req, res) => {
-  const { dossier, username, role } = req.body;
+  const { dossier, username, role, photos } = req.body;
   if (!dossier) return res.status(400).json({ success: false, message: 'Dossier object required.' });
 
   console.log(`➕ Creating new dossier submitted by: ${username}`);
@@ -587,6 +588,13 @@ app.post('/api/dossiers', async (req, res) => {
     dossier.lastUpdated = new Date().toISOString();
 
     mockDossiers.push(dossier);
+
+    if (photos && Array.isArray(photos)) {
+      photos.forEach(p => {
+        mockDossierPhotos.push({ dossier_id: dossier.id, photo_url: p });
+      });
+    }
+
     mockAuditLogs.unshift({
       timestamp: new Date().toISOString(),
       username,
@@ -628,6 +636,17 @@ app.post('/api/dossiers', async (req, res) => {
     const { error } = await supabase.from('cdims_dossiers').insert([newDossierRecord]);
     if (error) throw error;
 
+    if (photos && Array.isArray(photos) && photos.length > 0) {
+      const photoRecords = photos.map(p => ({
+        dossier_id: newId,
+        photo_url: p
+      }));
+      const { error: photoErr } = await supabase
+        .from('cdims_dossier_photos')
+        .insert(photoRecords);
+      if (photoErr) console.error('Error inserting photos to Supabase:', photoErr.message);
+    }
+
     // Log in database
     await supabase.from('cdims_audit_logs').insert([{
       username,
@@ -639,6 +658,33 @@ app.post('/api/dossiers', async (req, res) => {
     res.json({ success: true, dossier: { ...dossier, id: newId, approvalStatus: 'Pending Verification' } });
   } catch (err) {
     console.error('Insert dossier error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 5.5. Get Dossier Photos List
+app.get('/api/dossier-photos/:dossierId', async (req, res) => {
+  const { dossierId } = req.params;
+  console.log(`🖼️ Fetching photos for dossier: ${dossierId}`);
+
+  if (useLocalMock) {
+    const photos = mockDossierPhotos
+      .filter(p => p.dossier_id === dossierId)
+      .map(p => p.photo_url);
+    return res.json({ success: true, photos });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('cdims_dossier_photos')
+      .select('photo_url')
+      .eq('dossier_id', dossierId);
+
+    if (error) throw error;
+
+    res.json({ success: true, photos: (data || []).map(p => p.photo_url) });
+  } catch (err) {
+    console.error('Fetch photos error:', err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });

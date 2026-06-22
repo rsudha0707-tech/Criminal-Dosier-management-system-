@@ -462,11 +462,18 @@ function _dossierToSupabaseRow(d) {
 
 function _supabaseRowToDossier(row) {
   if (!row) return null;
+  const history = row.history || [];
+  const primaryDistrict = history[0]?.district || 'lucknow';
+  const personalInfo = row.personal_info ? { ...row.personal_info } : {};
+  if (!personalInfo.district) {
+    personalInfo.district = primaryDistrict;
+  }
   return {
     id: row.id,
-    personalInfo: row.personal_info || {},
+    district: primaryDistrict,
+    personalInfo: personalInfo,
     biometrics: row.biometrics || {},
-    history: row.history || [],
+    history: history,
     gangInfo: row.gang_info || {},
     surveillance: row.surveillance || {},
     propertyDetails: row.property_details || [],
@@ -606,6 +613,7 @@ function _csvRowToDossier(row) {
 
     return {
       id: row.record_id || 'CRM-2026-XXXX',
+      district: distId,
       personalInfo: {
         name: row.full_name || '',
         aliasName: row.alias || '',
@@ -620,7 +628,8 @@ function _csvRowToDossier(row) {
         address: row.last_known_location || 'UP',
         permanentAddress: 'UP',
         photograph: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-        village: village
+        village: village,
+        district: distId
       },
       biometrics: {
         fingerprints: row.biometric_profile || 'SECURED',
@@ -684,8 +693,10 @@ function _csvRowToDossier(row) {
     gangMembers = row.gangMembers.split(';').map(m => m.trim()).filter(Boolean);
   }
 
+  const primaryDistrict = history[0]?.district || 'lucknow';
   return {
     id: row.id || 'CRM-2026-XXXX',
+    district: primaryDistrict,
     personalInfo: {
       name: row.name || '',
       aliasName: row.aliasName || '',
@@ -714,7 +725,8 @@ function _csvRowToDossier(row) {
           }
         }
         return v;
-      })()
+      })(),
+      district: row.district || primaryDistrict
     },
     biometrics: {
       fingerprints: row.fingerprints || '',
@@ -895,6 +907,14 @@ function _loadLocalStorage() {
   }
   const stored = localStorage.getItem('cdims_dossiers');
   _cache = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(INITIAL_DOSSIERS));
+  
+  // Ensure district and personalInfo.district are set
+  _cache.forEach(d => {
+    const primaryDistrict = d.history[0]?.district || 'lucknow';
+    if (!d.district) d.district = primaryDistrict;
+    if (!d.personalInfo.district) d.personalInfo.district = primaryDistrict;
+  });
+
   if (!stored) localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
 
   _loadLocalAuditLogs();
@@ -943,7 +963,7 @@ function saveDossiers(dossiers) {
   syncVillagesFromDossiers();
 }
 
-async function addDossier(dossier, user) {
+async function addDossier(dossier, user, photos = []) {
   // Generate sequential ID
   const maxNum = _cache.reduce((max, d) => {
     const n = parseInt(d.id.split('-').pop()) || 0;
@@ -956,6 +976,10 @@ async function addDossier(dossier, user) {
   dossier.approvedBy = 'Awaiting Approval';
   dossier.lastUpdated = new Date().toISOString();
 
+  const primaryDistrict = dossier.history[0]?.district || 'lucknow';
+  if (!dossier.district) dossier.district = primaryDistrict;
+  if (!dossier.personalInfo.district) dossier.personalInfo.district = primaryDistrict;
+
   _cache.push(dossier);
   syncVillagesFromDossiers();
 
@@ -963,11 +987,26 @@ async function addDossier(dossier, user) {
     try {
       const { error } = await _sb.from('cdims_dossiers').insert(_dossierToSupabaseRow(dossier));
       if (error) throw error;
+
+      if (photos && photos.length > 0) {
+        const photoRecords = photos.map(p => ({ dossier_id: dossier.id, photo_url: p }));
+        const { error: photoErr } = await _sb.from('cdims_dossier_photos').insert(photoRecords);
+        if (photoErr) throw photoErr;
+      }
+
       localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
     } catch (e) {
       console.error('[CDIMS] addDossier Supabase error:', e.message);
     }
   } else {
+    if (photos && photos.length > 0) {
+      const stored = localStorage.getItem('cdims_dossier_photos');
+      const localPhotos = stored ? JSON.parse(stored) : [];
+      photos.forEach(p => {
+        localPhotos.push({ dossierId: dossier.id, photoUrl: p });
+      });
+      localStorage.setItem('cdims_dossier_photos', JSON.stringify(localPhotos));
+    }
     localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
   }
 
@@ -985,6 +1024,11 @@ async function updateDossier(dossier, user) {
   if (idx === -1) return false;
 
   dossier.lastUpdated = new Date().toISOString();
+
+  const primaryDistrict = dossier.history[0]?.district || 'lucknow';
+  if (!dossier.district) dossier.district = primaryDistrict;
+  if (!dossier.personalInfo.district) dossier.personalInfo.district = primaryDistrict;
+
   _cache[idx] = dossier;
   syncVillagesFromDossiers();
 
@@ -1357,6 +1401,50 @@ window.calculateRiskScore = calculateRiskScore;
 window.runCrimePatternAnalysis = runCrimePatternAnalysis;
 window.generateStatistics = generateStatistics;
 window.importDossiersFromCSVContent = importDossiersFromCSVContent;
+window.getDossierPhotos = getDossierPhotos;
+
+async function getDossierPhotos(dossierId) {
+  const isGitHubPages = window.location.hostname.endsWith('github.io');
+  if (isGitHubPages) {
+    if (_useSupabase && _sb) {
+      try {
+        const { data, error } = await _sb
+          .from('cdims_dossier_photos')
+          .select('photo_url')
+          .eq('dossier_id', dossierId);
+        if (error) throw error;
+        return (data || []).map(p => p.photo_url);
+      } catch (e) {
+        console.error('[CDIMS] getDossierPhotos Supabase error:', e.message);
+        return _getLocalPhotos(dossierId);
+      }
+    } else {
+      return _getLocalPhotos(dossierId);
+    }
+  } else {
+    try {
+      const isLocalhost5001 = window.location.port === '5001';
+      const apiBase = isLocalhost5001 ? '' : 'http://localhost:5001';
+      const res = await fetch(`${apiBase}/api/dossier-photos/${dossierId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.photos) {
+          return data.photos;
+        }
+      }
+      return _getLocalPhotos(dossierId);
+    } catch (err) {
+      console.error('Error fetching photos from server:', err);
+      return _getLocalPhotos(dossierId);
+    }
+  }
+}
+
+function _getLocalPhotos(dossierId) {
+  const stored = localStorage.getItem('cdims_dossier_photos');
+  const photos = stored ? JSON.parse(stored) : [];
+  return photos.filter(p => p.dossierId === dossierId).map(p => p.photoUrl);
+}
 
 // ──────────────────────────────────────────────────────────
 //  Auto-start loading data immediately on page load
