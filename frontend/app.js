@@ -348,7 +348,12 @@ async function navigateTo(view) {
 function renderDashboard() {
   const stats = generateStatistics();
   const dossiers = getDossiers();
-  const pendingDossiers = dossiers.filter(d => d.approvalStatus === 'Pending Verification');
+  let pendingDossiers = [];
+  if (currentUser.level === 2) {
+    pendingDossiers = dossiers.filter(d => d.approvalStatus === 'Pending Verification');
+  } else if (currentUser.level === 3) {
+    pendingDossiers = dossiers.filter(d => d.approvalStatus === 'Pending Approval');
+  }
 
   // Calculate criminals active in multiple police stations
   const multiPsCount = dossiers.filter(d => {
@@ -365,9 +370,9 @@ function renderDashboard() {
           <span style="font-size:22px;">⚠️</span>
           <div style="flex:1; min-width:0;">
             <div style="font-weight:700; color:#fbbf24; font-size:13px;">Pending Review: ${pendingDossiers.length} Criminal Dossiers</div>
-            <div style="font-size:11px; color:var(--text-secondary);">Dossiers awaiting verification & approval for district records</div>
+            <div style="font-size:11px; color:var(--text-secondary);">Dossiers awaiting ${currentUser.level === 2 ? 'verification' : 'approval'} for district records</div>
           </div>
-          <button class="btn btn-sm" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);" onclick="navigateTo('dossiers')">Verify Records</button>
+          <button class="btn btn-sm" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);" onclick="navigateTo('dossiers')">${currentUser.level === 2 ? 'Verify' : 'Approve'} Records</button>
         </div>` : ''}
 
         ${currentUser.level === 1 ? `
@@ -1400,9 +1405,13 @@ function renderDossierTable(dossiers) {
                 <td>
                   <div style="display:flex; gap:6px; flex-wrap:wrap;">
                     <button class="btn btn-xs btn-secondary" onclick="openDossierModal(getDossiers().find(x=>x.id==='${d.id}'))">👁️ View</button>
-                    ${currentUser.level >= 2 && d.approvalStatus === 'Pending Verification' ? `
-                      <button class="btn btn-xs btn-success" onclick="quickApprove('${d.id}')">✅</button>
-                      <button class="btn btn-xs btn-danger" onclick="quickReturn('${d.id}')">↩️</button>
+                    ${currentUser.level === 2 && d.approvalStatus === 'Pending Verification' ? `
+                      <button class="btn btn-xs btn-success" onclick="quickVerify('${d.id}')" title="Verify & Send to PHQ">🔍 Verify</button>
+                      <button class="btn btn-xs btn-danger" onclick="quickReturn('${d.id}')" title="Return for Correction">↩️ Return</button>
+                    ` : ''}
+                    ${currentUser.level === 3 && d.approvalStatus === 'Pending Approval' ? `
+                      <button class="btn btn-xs btn-success" onclick="quickApprove('${d.id}')" title="Approve Dossier">✅ Approve</button>
+                      <button class="btn btn-xs btn-danger" onclick="quickReturn('${d.id}')" title="Return for Correction">↩️ Return</button>
                     ` : ''}
                   </div>
                 </td>
@@ -1421,14 +1430,26 @@ function statusBadge(status) {
   return `<span class="badge ${map[status] || 'badge-active'}">${icons[status] || ''} ${status}</span>`;
 }
 function approvalBadge(status) {
-  const map = { 'Approved': 'badge-approved', 'Pending Verification': 'badge-pending', 'Returned for Correction': 'badge-returned' };
-  const icons = { 'Approved': '✅', 'Pending Verification': '⏳', 'Returned for Correction': '↩️' };
+  const map = { 'Approved': 'badge-approved', 'Pending Verification': 'badge-pending', 'Pending Approval': 'badge-pending-approval', 'Returned for Correction': 'badge-returned' };
+  const icons = { 'Approved': '✅', 'Pending Verification': '⏳', 'Pending Approval': '⚡', 'Returned for Correction': '↩️' };
   return `<span class="badge ${map[status] || 'badge-pending'}">${icons[status] || ''} ${status}</span>`;
 }
 function categoryBadgeClass(cat) {
   if (cat.includes('A')) return 'badge badge-cat-a';
   if (cat.includes('B')) return 'badge badge-cat-b';
   return 'badge badge-cat-c';
+}
+
+async function quickVerify(id) {
+  try {
+    const success = await verifyDossier(id, currentUser);
+    if (success) {
+      showToast('🔍 Dossier verified and sent to PHQ Admin!', 'success');
+      await navigateTo('dossiers');
+    }
+  } catch (e) {
+    showToast('❌ Verification failed: ' + e.message, 'error');
+  }
 }
 
 async function quickApprove(id) {
@@ -1489,7 +1510,12 @@ function openDossierModal(dossier) {
           <div style="margin-top:4px;">${approvalBadge(dossier.approvalStatus)}</div>
         </div>
         <div id="modal-photos-gallery"></div>
-        ${currentUser.level >= 2 && dossier.approvalStatus === 'Pending Verification' ? `
+        ${currentUser.level === 2 && dossier.approvalStatus === 'Pending Verification' ? `
+        <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
+          <button class="btn btn-success btn-sm" onclick="quickVerify('${dossier.id}'); closeDossierModal();">🔍 Verify & Send to PHQ</button>
+          <button class="btn btn-danger btn-sm" onclick="closeDossierModal(); quickReturn('${dossier.id}');">↩️ Return</button>
+        </div>` : ''}
+        ${currentUser.level === 3 && dossier.approvalStatus === 'Pending Approval' ? `
         <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
           <button class="btn btn-success btn-sm" onclick="quickApprove('${dossier.id}'); closeDossierModal();">✅ Approve</button>
           <button class="btn btn-danger btn-sm" onclick="closeDossierModal(); quickReturn('${dossier.id}');">↩️ Return</button>

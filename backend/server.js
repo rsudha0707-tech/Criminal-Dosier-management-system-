@@ -525,14 +525,23 @@ app.get('/api/dossiers', async (req, res) => {
   // Extract user authorization headers to customize query if needed
   const userDistrict = req.query.district;
   const userLevel = parseInt(req.query.level || '3');
+  const userStation = req.query.station;
 
-  console.log(`📂 Fetching dossiers for level ${userLevel}, district: ${userDistrict || 'all'}`);
+  console.log(`📂 Fetching dossiers for level ${userLevel}, district: ${userDistrict || 'all'}, station: ${userStation || 'all'}`);
 
   if (useLocalMock) {
     let filtered = [...mockDossiers];
     // Customization: Level 1 and 2 are restricted to district or station content if needed
     if (userDistrict && userDistrict !== 'all' && userLevel < 3) {
       filtered = filtered.filter(d => d.history.some(h => h.district === userDistrict));
+    }
+    // Filter by station for level 1
+    if (userLevel === 1 && userStation) {
+      const stationKey = userStation.split(' PS')[0].trim().toLowerCase();
+      filtered = filtered.filter(d => {
+        return (d.history && d.history.some(h => h.policeStation && h.policeStation.toLowerCase() === stationKey)) ||
+          (d.submittedBy && d.submittedBy.toLowerCase().includes(stationKey));
+      });
     }
     return res.json({ success: true, dossiers: filtered });
   }
@@ -563,6 +572,14 @@ app.get('/api/dossiers', async (req, res) => {
     // Filter by district for local customization if requested
     if (userDistrict && userDistrict !== 'all' && userLevel < 3) {
       dossiers = dossiers.filter(d => d.history.some(h => h.district === userDistrict));
+    }
+    // Filter by station for level 1
+    if (userLevel === 1 && userStation) {
+      const stationKey = userStation.split(' PS')[0].trim().toLowerCase();
+      dossiers = dossiers.filter(d => {
+        return (d.history && d.history.some(h => h.policeStation && h.policeStation.toLowerCase() === stationKey)) ||
+          (d.submittedBy && d.submittedBy.toLowerCase().includes(stationKey));
+      });
     }
 
     res.json({ success: true, dossiers });

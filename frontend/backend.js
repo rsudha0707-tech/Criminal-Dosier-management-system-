@@ -1053,21 +1053,48 @@ async function updateDossier(dossier, user) {
   return true;
 }
 
+async function verifyDossier(id, user) {
+  const idx = _cache.findIndex(d => d.id === id);
+  if (idx === -1) return false;
+
+  const now = new Date().toISOString();
+  _cache[idx].approvalStatus = 'Pending Approval';
+  _cache[idx].verifiedBy = (user && user.name) || 'District Nodal Officer';
+  _cache[idx].lastUpdated = now;
+
+  if (_useSupabase && _sb) {
+    try {
+      const { error } = await _sb.from('cdims_dossiers').update({
+        approval_status: 'Pending Approval',
+        verified_by: _cache[idx].verifiedBy,
+        last_updated: now
+      }).eq('id', id);
+      if (error) throw error;
+      localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+    } catch (e) {
+      console.error('[CDIMS] verifyDossier Supabase error:', e.message);
+    }
+  } else {
+    localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+  }
+
+  addAuditLog((user && user.username) || 'unknown', (user && user.role) || 'Unknown', 'Verify Dossier', `Verified dossier ${id} and sent to PHQ Admin`);
+  return true;
+}
+
 async function approveDossier(id, user) {
   const idx = _cache.findIndex(d => d.id === id);
   if (idx === -1) return false;
 
   const now = new Date().toISOString();
   _cache[idx].approvalStatus = 'Approved';
-  _cache[idx].verifiedBy = (user && user.name) || 'Verified Officer';
-  _cache[idx].approvedBy = (user && user.name) || 'Approving Officer';
+  _cache[idx].approvedBy = (user && user.name) || 'PHQ Admin';
   _cache[idx].lastUpdated = now;
 
   if (_useSupabase && _sb) {
     try {
       const { error } = await _sb.from('cdims_dossiers').update({
         approval_status: 'Approved',
-        verified_by: _cache[idx].verifiedBy,
         approved_by: _cache[idx].approvedBy,
         last_updated: now
       }).eq('id', id);
@@ -1358,8 +1385,62 @@ function syncVillagesFromDossiers() {
   console.info("[CDIMS] Dynamic villages synced from database dossiers:", window.VILLAGES_BY_STATION);
 }
 
+async function syncWithBackend(user) {
+  if (!user) return false;
+  console.log("🔄 Synchronizing local state with backend according to role...");
+  try {
+    const isGitHubPages = window.location.hostname.endsWith('github.io');
+    if (isGitHubPages || (_useSupabase && _sb)) {
+      if (_useSupabase && _sb) {
+        const { data, error } = await _sb.from('cdims_dossiers').select('*');
+        if (error) throw error;
+        if (data) {
+          _cache = data.map(_supabaseRowToDossier);
+        }
+      }
+      // Direct Supabase/offline mode: filter in-memory based on user role
+      if (user.level === 3) {
+        // Keep all
+      } else if (user.level === 2) {
+        _cache = _cache.filter(d => d.history && d.history.some(h => h.district === user.district));
+      } else if (user.level === 1) {
+        const stationKey = user.station ? user.station.split(' PS')[0].trim().toLowerCase() : '';
+        _cache = _cache.filter(d => {
+          return (d.history && d.history.some(h => h.policeStation && h.policeStation.toLowerCase() === stationKey)) ||
+            (d.submittedBy && d.submittedBy.toLowerCase().includes(stationKey));
+        });
+      }
+      localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+      syncVillagesFromDossiers();
+      console.log(`✅ Cached dossiers synchronized: ${_cache.length}`);
+      return true;
+    } else {
+      // Local server mode: fetch from Express API which implements database role filtering
+      const isLocalhost5001 = window.location.port === '5001';
+      const apiBase = isLocalhost5001 ? '' : 'http://localhost:5001';
+      const dossiersUrl = `${apiBase}/api/dossiers?district=${user.district || 'all'}&level=${user.level || 3}&station=${encodeURIComponent(user.station || '')}`;
+      const res = await fetch(dossiersUrl);
+      if (res.ok) {
+        const resData = await res.json();
+        if (resData.success && resData.dossiers) {
+          _cache = resData.dossiers;
+          localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+          syncVillagesFromDossiers();
+          console.log(`✅ Cached dossiers synced from server API: ${_cache.length}`);
+          return true;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("⚠️ syncWithBackend failed:", e.message);
+  }
+  return false;
+}
+
 async function syncDatabase() {
-  if (_useSupabase && _sb) {
+  if (window.currentUser) {
+    await syncWithBackend(window.currentUser);
+  } else if (_useSupabase && _sb) {
     try {
       console.info('[CDIMS Backend] Re-fetching dossiers from Supabase...');
       const { data, error } = await _sb.from('cdims_dossiers').select('*');
@@ -1385,6 +1466,7 @@ window.INITIAL_DOSSIERS = INITIAL_DOSSIERS;
 window.VILLAGES_BY_STATION = VILLAGES_BY_STATION;
 window.syncVillagesFromDossiers = syncVillagesFromDossiers;
 window.syncDatabase = syncDatabase;
+window.syncWithBackend = syncWithBackend;
 window.CDIMS_DB_VERSION = CDIMS_DB_VERSION;
 
 window.initDatabase = initDatabase;
@@ -1393,6 +1475,7 @@ window.saveDossiers = saveDossiers;
 window.addDossier = addDossier;
 window.updateDossier = updateDossier;
 window.approveDossier = approveDossier;
+window.verifyDossier = verifyDossier;
 window.returnDossierForCorrection = returnDossierForCorrection;
 window.searchDossiers = searchDossiers;
 window.getAuditLogs = getAuditLogs;
