@@ -686,15 +686,44 @@ function updateDossier(dossier, user) {
   return false;
 }
 
-// Approve dossier (District Nodal L2 / PHQ Admin L3 function)
+// Verify dossier (District Nodal L2 function)
+function verifyDossier(id, user) {
+  initDatabase();
+  const index = dossiersCache.findIndex(d => d.id === id);
+  if (index !== -1) {
+    const d = dossiersCache[index];
+    d.approvalStatus = "Pending Approval";
+    d.verifiedBy = user.name || "District Nodal Officer";
+    d.lastUpdated = new Date().toISOString();
+    
+    saveDossiers(dossiersCache);
+    addAuditLog(user.username, user.role, "Verify Dossier", `Verified dossier ${id} and sent to PHQ Admin`);
+
+    // Asynchronous backend status update
+    fetch(`/api/dossiers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dossier: d, username: user.username, role: user.role })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) console.log(`✅ Dossier ${id} verified and saved in Supabase.`);
+    })
+    .catch(err => console.warn("⚠️ Failed to update database status. Saved in local fallback state.", err));
+
+    return true;
+  }
+  return false;
+}
+
+// Approve dossier (PHQ Admin L3 function)
 function approveDossier(id, user) {
   initDatabase();
   const index = dossiersCache.findIndex(d => d.id === id);
   if (index !== -1) {
     const d = dossiersCache[index];
     d.approvalStatus = "Approved";
-    d.verifiedBy = user.name || "CO Authorized";
-    d.approvedBy = user.name || "SP Authorized";
+    d.approvedBy = user.name || "PHQ Admin";
     d.lastUpdated = new Date().toISOString();
     
     saveDossiers(dossiersCache);
@@ -935,6 +964,7 @@ window.getDossiers = getDossiers;
 window.addDossier = addDossier;
 window.updateDossier = updateDossier;
 window.approveDossier = approveDossier;
+window.verifyDossier = verifyDossier;
 window.returnDossierForCorrection = returnDossierForCorrection;
 window.searchDossiers = searchDossiers;
 window.getAuditLogs = getAuditLogs;

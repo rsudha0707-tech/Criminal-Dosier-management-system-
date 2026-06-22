@@ -1442,7 +1442,11 @@ function categoryBadgeClass(cat) {
 
 async function quickVerify(id) {
   try {
-    const success = await verifyDossier(id, currentUser);
+    const verifyFn = window.verifyDossier || (typeof verifyDossier !== 'undefined' ? verifyDossier : null);
+    if (!verifyFn) {
+      throw new Error("verifyDossier function is not loaded in backend database layer.");
+    }
+    const success = await verifyFn(id, currentUser);
     if (success) {
       showToast('🔍 Dossier verified and sent to PHQ Admin!', 'success');
       await navigateTo('dossiers');
