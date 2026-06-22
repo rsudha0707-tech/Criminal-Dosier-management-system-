@@ -491,7 +491,7 @@ const getHudData = (suspectId, dossiers) => {
     id: 'suspect',
     type: 'suspect',
     label: 'Suspect',
-    title: d.personalInfo.name.toUpperCase(),
+    title: (d.personalInfo.name || '').toUpperCase(),
     meta: `AGE: ${d.personalInfo.age || 35} | ALIASES: ${d.personalInfo.aliasName || 'NONE'}`,
     left: 41,
     top: 6,
@@ -503,16 +503,16 @@ const getHudData = (suspectId, dossiers) => {
   if (d.history) {
     d.history.slice(0, 2).forEach((h, idx) => {
       const isPrimary = idx === 0;
-      const distCoords = districtCoords[h.district.toLowerCase()] || primaryDist;
+      const distCoords = (h.district && districtCoords[h.district.toLowerCase()]) || primaryDist;
       cards.push({
         id: `case_${idx}`,
         type: 'case',
         label: 'Case File',
         title: h.firNumber || 'PENDING FIR',
-        meta: `${h.sections}\nPS: ${h.policeStation.toUpperCase()}\nDATE: ${h.date || 'RECENT'}`,
-        status: d.status.toUpperCase(),
+        meta: `${h.sections}\nPS: ${(h.policeStation || '').toUpperCase()}\nDATE: ${h.date || 'RECENT'}`,
+        status: (d.status || '').toUpperCase(),
         statusClass: d.status === 'Wanted' ? 'badge-wanted' : 'badge-active',
-        badge: d.status.toUpperCase(),
+        badge: (d.status || '').toUpperCase(),
         left: isPrimary ? 38 : 75,
         top: isPrimary ? 55 : 38,
         connectTo: { x: distCoords.x, y: distCoords.y }
@@ -545,7 +545,7 @@ const getHudData = (suspectId, dossiers) => {
       id: 'co_accused',
       type: 'co_accused',
       label: 'Co-Accused',
-      title: d.gangInfo.gangMembers[0].toUpperCase(),
+      title: (d.gangInfo.gangMembers[0] || '').toUpperCase(),
       meta: `ASSOCIATE IN ${d.gangInfo.gangName || 'SYNDICATE'}`,
       left: 7,
       top: 45,
@@ -579,7 +579,7 @@ const getHudData = (suspectId, dossiers) => {
   }
 
   const path = dists.map(di => di.id);
-  const casesMatches = d.history ? d.history.map((h, i) => `${i + 1}. ${h.firNumber || 'FIR'} — ${h.sections || 'IPC'} — ${h.district.toUpperCase()} — ${h.chargeSheetStatus}`) : [];
+  const casesMatches = d.history ? d.history.map((h, i) => `${i + 1}. ${h.firNumber || 'FIR'} — ${h.sections || 'IPC'} — ${(h.district || '').toUpperCase()} — ${h.chargeSheetStatus}`) : [];
 
   return {
     id: d.id,
@@ -613,7 +613,7 @@ const districtCenters = {
 };
 
 function ReactNetworkGraph() {
-  const [viewMode, setViewMode] = useState('hud'); // Default to Cross-District HUD view
+  const [viewMode, setViewMode] = useState('syndicate'); // Default to Syndicate Graph view
   const [hudSuspectId, setHudSuspectId] = useState('ravi_kumar');
   const [nodes, setNodes] = useState(INITIAL_SYNTHETIC_NODES);
   const [links, setLinks] = useState(INITIAL_SYNTHETIC_LINKS);

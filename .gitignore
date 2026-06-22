@@ -3,4 +3,3 @@ node_modules/
 .DS_Store
 dist/
 *.log
-frontend/network_react.compiled.js
