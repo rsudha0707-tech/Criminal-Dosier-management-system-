@@ -3473,8 +3473,9 @@ async function generateOfficerCredentials() {
         line-height: 1.4;
         text-align: left;
       `;
+      const isSbConnected = typeof window._useSupabase !== 'undefined' && window._useSupabase;
       resultDiv.innerHTML = `
-        <div style="font-weight:700; color:var(--gold-400); margin-bottom:4px;">🎫 GENERATED IDENTITY (OFFLINE PERSISTED):</div>
+        <div style="font-weight:700; color:var(--gold-400); margin-bottom:4px;">🎫 GENERATED IDENTITY (${isSbConnected ? 'SAVED TO DATABASE' : 'SAVED LOCALLY'}):</div>
         <div>👤 <strong>Name:</strong> ${newOfficer.name}</div>
         <div>👮 <strong>Role:</strong> ${newOfficer.role}</div>
         <div>📍 <strong>Office:</strong> ${newOfficer.station} (${newOfficer.district})</div>
@@ -3483,7 +3484,7 @@ async function generateOfficerCredentials() {
           🔒 <strong style="color:var(--green-400);">Password:</strong> <code style="background:rgba(255,255,255,0.08); padding:1px 3px; border-radius:3px; font-family:monospace;">${newOfficer.password}</code>
         </div>
         <div style="font-size:9px; color:var(--text-muted); margin-top:6px;">
-          ⚠️ Offline Mode. Saved to localStorage and cdims_users.
+          ${isSbConnected ? '✅ Saved directly to Supabase table <code>cdims_users</code> and synced.' : '⚠️ Offline Mode. Saved to localStorage only.'}
         </div>
       `;
 

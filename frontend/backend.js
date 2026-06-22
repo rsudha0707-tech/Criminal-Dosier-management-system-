@@ -434,14 +434,17 @@ const INITIAL_DOSSIERS = [
 (function _setupSupabase() {
   if (SUPABASE_URL.includes('YOUR-PROJECT-ID') || SUPABASE_ANON_KEY.includes('YOUR-SUPABASE-ANON')) {
     console.warn('[CDIMS Backend] Supabase not configured — using localStorage fallback.');
+    window._useSupabase = false;
     return;
   }
   try {
     _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     _useSupabase = true;
+    window._useSupabase = true;
     console.info('[CDIMS Backend] ✓ Supabase client connected.');
   } catch (e) {
     console.error('[CDIMS Backend] Supabase init error:', e.message);
+    window._useSupabase = false;
   }
 })();
 
@@ -1569,6 +1572,7 @@ window.importDossiersFromCSVContent = importDossiersFromCSVContent;
 window.getDossierPhotos = getDossierPhotos;
 window.dbAddUser = dbAddUser;
 window.getSystemUsers = getSystemUsers;
+window._useSupabase = _useSupabase;
 
 async function getDossierPhotos(dossierId) {
   const isGitHubPages = window.location.hostname.endsWith('github.io');
