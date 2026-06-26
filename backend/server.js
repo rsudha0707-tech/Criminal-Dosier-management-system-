@@ -19,14 +19,10 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Serve the dummy data CSV from backend/data/.csv if requested as dossiers.csv
+// Serve empty dossiers.csv
 app.get('/dossiers.csv', (req, res) => {
-  const dataCsvPath = path.join(__dirname, 'data', '.csv');
-  if (fs.existsSync(dataCsvPath)) {
-    res.setHeader('Content-Type', 'text/csv');
-    return res.sendFile(dataCsvPath);
-  }
-  res.sendFile(path.join(__dirname, '../frontend', 'dossiers.csv'));
+  res.setHeader('Content-Type', 'text/csv');
+  res.send('');
 });
 
 // Serve static frontend files from frontend directory
@@ -364,36 +360,8 @@ function mapCsvRowToDossier(row) {
   return parsed;
 }
 
-// Load initial mock dossiers
-let dossiersLoaded = false;
-const dataCsvPath = path.join(__dirname, 'data', '.csv');
-if (fs.existsSync(dataCsvPath)) {
-  try {
-    const fileContent = fs.readFileSync(dataCsvPath, 'utf8');
-    const rows = parseCSV(fileContent);
-    mockDossiers = rows.map(mapCsvRowToDossier);
-    dossiersLoaded = true;
-    console.log(`📦 Loaded ${mockDossiers.length} initial mock dossiers from backend/data/.csv.`);
-  } catch (err) {
-    console.error('❌ Failed to parse backend/data/.csv:', err.message);
-  }
-}
-
-if (!dossiersLoaded) {
-  try {
-    const dossiersFilePath = path.join(__dirname, '../frontend', 'dossiers.js');
-    if (fs.existsSync(dossiersFilePath)) {
-      const fileContent = fs.readFileSync(dossiersFilePath, 'utf8');
-      const arrayMatch = fileContent.match(/const INITIAL_DOSSIERS = (\[[\s\S]*?\]);/);
-      if (arrayMatch && arrayMatch[1]) {
-        mockDossiers = eval(arrayMatch[1]);
-        console.log(`📦 Loaded ${mockDossiers.length} initial mock dossiers from dossiers.js.`);
-      }
-    }
-  } catch (e) {
-    console.log('⚠️ Could not load default dossiers into memory. Using empty array fallback.');
-  }
-}
+// Initial mock dossiers loading disabled to fetch only database records.
+mockDossiers = [];
 
 // ── Express API Endpoints ──
 
@@ -433,41 +401,7 @@ app.post('/api/setup-db', async (req, res) => {
       useLocalMock = false; // Once database is successfully setup, try to use Supabase if available
       console.log('✅ Supabase database created and seeded successfully using schema.sql.');
 
-      // Seed mock dossiers if database is connected
-      if (supabase) {
-        console.log('🚀 Seeding cdims_dossiers from local mock data into Supabase...');
-        const { data: existingDossiers, error: checkErr } = await supabase
-          .from('cdims_dossiers')
-          .select('id');
-
-        if (!checkErr && (!existingDossiers || existingDossiers.length === 0)) {
-          const recordsToInsert = mockDossiers.map(d => ({
-            id: d.id,
-            personal_info: d.personalInfo,
-            biometrics: d.biometrics,
-            history: d.history,
-            gang_info: d.gangInfo,
-            surveillance: d.surveillance,
-            property_details: d.propertyDetails || [],
-            vehicle_details: d.vehicleDetails || [],
-            status: d.status,
-            approval_status: d.approvalStatus,
-            submitted_by: d.submittedBy || 'System Seed',
-            last_updated: d.lastUpdated || new Date().toISOString()
-          }));
-
-          if (recordsToInsert.length > 0) {
-            const { error: insertErr } = await supabase
-              .from('cdims_dossiers')
-              .insert(recordsToInsert);
-            if (insertErr) {
-              console.error('⚠️ Failed to seed mock dossiers into Supabase:', insertErr.message);
-            } else {
-              console.log(`✅ Successfully seeded ${recordsToInsert.length} dossiers into Supabase cdims_dossiers.`);
-            }
-          }
-        }
-      }
+      // Seeding mock dossiers disabled to ensure database only contains real records.
 
       res.json({ success: true, message: 'Supabase database created, cdims_users and cdims_dossiers initialized and seeded successfully.' });
     } finally {

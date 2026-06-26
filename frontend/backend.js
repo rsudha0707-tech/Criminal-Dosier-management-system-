@@ -38,6 +38,8 @@ let _usersCache = JSON.parse(localStorage.getItem('cdims_users')) || [
   { name: 'DG Intelligence (PHQ)', username: 'phq_admin', role: 'State Administrator', level: 'L3', station: 'PHQ Lucknow', status: 'Active' }
 ];
 let _initPromise = null;   // singleton promise for initDatabase()
+let _lastSyncTime = 0;
+const SYNC_COOLDOWN_MS = 15000; // 15 seconds cooldown to prevent sluggish fetches on navigation
 
 // ──────────────────────────────────────────────────────────
 //  MASTER DATA — Districts, Circles, Stations
@@ -99,7 +101,18 @@ const MASTER_DATA = {
 //  VILLAGE MASTER MAP
 // ──────────────────────────────────────────────────────────
 const VILLAGES_BY_STATION = {
-  'Hazratganj': ['Madanpur', 'Sikandarpur', 'Rampur', 'Gomtipur'],
+  'Hazratganj': [
+    'Hazratganj Main Market Area',
+    'Nawal Kishore Road',
+    'Mahatma Gandhi Road (M.G. Marg)',
+    'Park Road',
+    'Sapru Marg',
+    'Rana Pratap Marg',
+    'Makbara Road / Shahjanaf Road',
+    'Tilak Marg',
+    'Balmiki Marg',
+    'Khandari Purwa'
+  ],
   'Gautampalli': ['Pipraghat', 'Jiamau', 'Ujariyaon'],
   'Hussainganj': ['Hussainganj Dehat', 'Charbagh Village'],
   'Chowk': ['Malihabad Village', 'Kakori Village', 'Hardoi Road Basti'],
@@ -792,32 +805,8 @@ function importDossiersFromCSVContent(text) {
 }
 
 async function loadDossiersFromCSV() {
-  try {
-    const response = await fetch('dossiers.csv');
-    if (!response.ok) throw new Error("Failed to fetch dossiers.csv");
-    const text = await response.text();
-    const rows = parseCSV(text);
-    const csvDossiers = rows.map(_csvRowToDossier);
-
-    // Merge with any newly added local user dossiers that are not in the CSV
-    const stored = localStorage.getItem('cdims_dossiers');
-    const localDossiers = stored ? JSON.parse(stored) : [];
-    const csvIds = new Set(csvDossiers.map(d => d.id));
-
-    const merged = [...csvDossiers];
-    for (const d of localDossiers) {
-      if (!csvIds.has(d.id)) {
-        merged.push(d);
-      }
-    }
-
-    _cache = merged;
-    localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
-    console.info(`[CDIMS Backend] ✓ Loaded ${_cache.length} records from dossiers.csv.`);
-  } catch (error) {
-    console.error("[CDIMS Backend] Failed to load CSV dossiers, using localStorage fallback:", error);
-    _loadLocalStorage();
-  }
+  console.info('[CDIMS Backend] loadDossiersFromCSV disabled. Relying on database or local cache.');
+  _loadLocalStorage();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -841,12 +830,12 @@ async function _doInit() {
       const { data, error } = await _sb.from('cdims_dossiers').select('*');
       if (error) {
         console.error('[CDIMS Backend] Failed to fetch cdims_dossiers from Supabase:', error.message);
-        await loadDossiersFromCSV();
-        _loadLocalAuditLogs();
+        _loadLocalStorage();
       } else if (!data || data.length === 0) {
-        console.warn('[CDIMS Backend] Supabase cdims_dossiers is empty. Auto-seeding initial data...');
-        await _seedSupabase();
-        return; // Seed logic re-triggers initDatabase
+        console.warn('[CDIMS Backend] Supabase cdims_dossiers is empty.');
+        _cache = [];
+        localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
+        _loadLocalAuditLogs();
       } else {
         _cache = data.map(_supabaseRowToDossier);
         localStorage.setItem('cdims_dossiers', JSON.stringify(_cache));
@@ -876,35 +865,17 @@ async function _doInit() {
       }
     } catch (e) {
       console.error('[CDIMS Backend] Exception during Supabase initialization:', e.message);
-      await loadDossiersFromCSV();
-      _loadLocalAuditLogs();
+      _loadLocalStorage();
     }
   } else {
-    await loadDossiersFromCSV();
-    _loadLocalAuditLogs();
+    _loadLocalStorage();
   }
   syncVillagesFromDossiers();
 }
 
-// Seed Supabase on first run
+// Seed Supabase disabled to keep only database records
 async function _seedSupabase() {
-  console.info('[CDIMS Backend] Seeding Supabase with initial cdims_dossiers data...');
-  for (const d of INITIAL_DOSSIERS) {
-    const { error } = await _sb.from('cdims_dossiers').insert(_dossierToSupabaseRow(d));
-    if (error) {
-      console.error(`[CDIMS Backend] Seeding error for ${d.id}:`, error.message);
-    }
-  }
-  // Seed audit logs
-  await _sb.from('cdims_audit_logs').insert([
-    { username: 'sho_hazratganj', role: 'Police Station User', action: 'Search', details: "Searched dossiers by alias 'Kaana'" },
-    { username: 'sho_chowk', role: 'Police Station User', action: 'Create Dossier', details: 'Created pending dossier CRM-2026-0006 for Sanjay Pal' },
-    { username: 'sp_crime_lucknow', role: 'District Nodal Officer', action: 'Approve Dossier', details: 'Approved dossier CRM-2026-0002 for Amit Mishra' },
-    { username: 'phq_admin', role: 'State Administrator', action: 'Export Data', details: 'Exported statewide wanted criminal list to PDF' }
-  ]);
-  // Re-load after seeding
-  _initPromise = null;
-  await initDatabase();
+  console.info('[CDIMS Backend] Supabase seeding disabled.');
 }
 
 // Load from localStorage (fallback / offline)
@@ -916,7 +887,7 @@ function _loadLocalStorage() {
     localStorage.setItem('cdims_db_version', CDIMS_DB_VERSION);
   }
   const stored = localStorage.getItem('cdims_dossiers');
-  _cache = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(INITIAL_DOSSIERS));
+  _cache = stored ? JSON.parse(stored) : [];
   
   // Ensure district and personalInfo.district are set
   _cache.forEach(d => {
@@ -1404,12 +1375,13 @@ function syncVillagesFromDossiers() {
   const dossiers = _cache;
   const dynamicVillages = {};
 
-  // Initialize with empty arrays for all known stations so they are at least present
+  // Initialize with predefined default villages for each station
   if (MASTER_DATA && MASTER_DATA.districts) {
     MASTER_DATA.districts.forEach(dist => {
       dist.circles.forEach(circle => {
         circle.stations.forEach(station => {
-          dynamicVillages[station] = new Set();
+          const defaults = VILLAGES_BY_STATION[station] || [];
+          dynamicVillages[station] = new Set(defaults);
         });
       });
     });
@@ -1470,8 +1442,14 @@ function syncVillagesFromDossiers() {
   console.info("[CDIMS] Dynamic villages synced from database dossiers:", window.VILLAGES_BY_STATION);
 }
 
-async function syncWithBackend(user) {
+async function syncWithBackend(user, force = false) {
   if (!user) return false;
+  const now = Date.now();
+  if (!force && now - _lastSyncTime < SYNC_COOLDOWN_MS) {
+    console.info('[CDIMS Backend] Skipping syncWithBackend (cooldown active).');
+    return true;
+  }
+  _lastSyncTime = now;
   console.log("🔄 Synchronizing local state with backend according to role...");
   try {
     const isGitHubPages = window.location.hostname.endsWith('github.io');
@@ -1522,10 +1500,16 @@ async function syncWithBackend(user) {
   return false;
 }
 
-async function syncDatabase() {
+async function syncDatabase(force = false) {
   if (window.currentUser) {
-    await syncWithBackend(window.currentUser);
+    await syncWithBackend(window.currentUser, force);
   } else if (_useSupabase && _sb) {
+    const now = Date.now();
+    if (!force && now - _lastSyncTime < SYNC_COOLDOWN_MS) {
+      console.info('[CDIMS Backend] Skipping syncDatabase (cooldown active).');
+      return;
+    }
+    _lastSyncTime = now;
     try {
       console.info('[CDIMS Backend] Re-fetching dossiers from Supabase...');
       const { data, error } = await _sb.from('cdims_dossiers').select('*');
