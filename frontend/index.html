@@ -253,37 +253,6 @@
               <option>AB-</option>
             </select>
           </div>
-        </div>
-        <div class="form-group-row" style="margin-top:8px;">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Residences / Addresses (वर्तमान / स्थायी पता)</label>
-          <div id="address-entries-container" style="display: flex; flex-direction: column; gap: 6px;">
-            <div class="address-entry-row" style="display: flex; gap: 8px; align-items: center;">
-              <textarea class="form-control-sm f-address-input" placeholder="Full address..." style="flex: 1; height: 38px; resize: vertical;"></textarea>
-              <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
-            </div>
-          </div>
-          <button type="button" class="btn btn-xs btn-secondary" onclick="addAddressField()" style="margin-top: 6px; font-size: 11px; padding: 2px 8px; width: fit-content;">➕ Add Residence/Address</button>
-        </div>
-
-        <div class="form-section-title" style="margin-top:16px;">⚖️ Criminal History</div>
-        <div class="form-grid">
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">FIR Number</label>
-            <input id="f-fir" class="form-control-sm" placeholder="FIR-XXX/YYYY" />
-          </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">District</label>
-            <select id="f-district" class="form-control-sm" onchange="window.onModalDistrictChange()">
-              <option value="lucknow">Lucknow</option>
-              <option value="varanasi">Varanasi</option>
-              <option value="prayagraj">Prayagraj</option>
-              <option value="noida">Gautam Buddha Nagar</option>
-            </select>
-          </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station</label>
-            <select id="f-ps" class="form-control-sm" onchange="window.onModalStationChange()"></select>
-          </div>
           <div class="form-group-row">
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">Village / ग्राम</label>
             <select id="f-village" class="form-control-sm"></select>
@@ -298,10 +267,47 @@
             </select>
           </div>
         </div>
-        <div class="form-group-row">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Sections of Law</label>
-          <input id="f-sections" class="form-control-sm" placeholder="e.g. IPC 302, Arms Act Sec 25" />
+        <div class="form-group-row" style="margin-top:8px;">
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Residences / Addresses (वर्तमान / स्थायी पता)</label>
+          <div id="address-entries-container" style="display: flex; flex-direction: column; gap: 6px;">
+            <div class="address-entry-row" style="display: flex; gap: 8px; align-items: center;">
+              <textarea class="form-control-sm f-address-input" placeholder="Full address..." style="flex: 1; height: 38px; resize: vertical;"></textarea>
+              <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
+            </div>
+          </div>
+          <button type="button" class="btn btn-xs btn-secondary" onclick="addAddressField()" style="margin-top: 6px; font-size: 11px; padding: 2px 8px; width: fit-content;">➕ Add Residence/Address</button>
         </div>
+
+        <div class="form-section-title" style="margin-top:16px;">⚖️ Criminal History / आपराधिक इतिहास</div>
+        <div id="history-entries-container" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px;">
+          <div class="history-entry-card" style="border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01);">
+            <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕ Remove</button>
+            <div class="form-grid" style="margin-top: 4px;">
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">FIR Number / एफआईआर संख्या</label>
+                <input id="f-fir" class="form-control-sm f-history-fir-input" placeholder="FIR-XXX/YYYY" />
+              </div>
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">District / जनपद</label>
+                <select id="f-district" class="form-control-sm f-history-district-input" onchange="window.onModalDistrictChange()">
+                  <option value="lucknow">Lucknow</option>
+                  <option value="varanasi">Varanasi</option>
+                  <option value="prayagraj">Prayagraj</option>
+                  <option value="noida">Gautam Buddha Nagar</option>
+                </select>
+              </div>
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station / थाना</label>
+                <select id="f-ps" class="form-control-sm f-history-ps-input" onchange="window.onModalStationChange()"></select>
+              </div>
+              <div class="form-group-row" style="grid-column: 1 / -1;">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Sections of Law / धाराएं</label>
+                <input id="f-sections" class="form-control-sm f-history-sections-input" placeholder="e.g. IPC 302, Arms Act Sec 25" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-xs btn-secondary" onclick="addHistoryField()" style="margin-bottom: 16px; font-size: 11px; padding: 4px 12px; width: fit-content;">➕ Add Criminal Record</button>
 
         <div class="form-section-title" style="margin-top:16px;">🕵️ Surveillance</div>
         <div class="form-grid">

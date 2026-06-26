@@ -2699,7 +2699,7 @@ function openAddDossierModal() {
   // Clear text fields
   const idsToClear = [
     'f-name', 'f-alias', 'f-father', 'f-dob', 'f-aadhaar', 
-    'f-fir', 'f-sections', 'f-intel', 'f-gang', 'f-leader'
+    'f-intel', 'f-gang', 'f-leader'
   ];
   idsToClear.forEach(id => {
     const el = document.getElementById(id);
@@ -2776,6 +2776,38 @@ function openAddDossierModal() {
           <div class="form-group-row">
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">Registration Details / पंजीकरण विवरण</label>
             <input class="form-control-sm f-veh-reg-input" placeholder="e.g. Registered under spouse" />
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const historyContainer = document.getElementById('history-entries-container');
+  if (historyContainer) {
+    historyContainer.innerHTML = `
+      <div class="history-entry-card" style="border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01);">
+        <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕ Remove</button>
+        <div class="form-grid" style="margin-top: 4px;">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">FIR Number / एफआईआर संख्या</label>
+            <input id="f-fir" class="form-control-sm f-history-fir-input" placeholder="FIR-XXX/YYYY" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">District / जनपद</label>
+            <select id="f-district" class="form-control-sm f-history-district-input" onchange="window.onModalDistrictChange()">
+              <option value="lucknow">Lucknow</option>
+              <option value="varanasi">Varanasi</option>
+              <option value="prayagraj">Prayagraj</option>
+              <option value="noida">Gautam Buddha Nagar</option>
+            </select>
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station / थाना</label>
+            <select id="f-ps" class="form-control-sm f-history-ps-input" onchange="window.onModalStationChange()"></select>
+          </div>
+          <div class="form-group-row" style="grid-column: 1 / -1;">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Sections of Law / धाराएं</label>
+            <input id="f-sections" class="form-control-sm f-history-sections-input" placeholder="e.g. IPC 302, Arms Act Sec 25" />
           </div>
         </div>
       </div>
@@ -2875,6 +2907,36 @@ async function submitNewDossier() {
     }
   });
 
+  // Extract multiple criminal history records
+  const historyCards = document.querySelectorAll('#history-entries-container .history-entry-card');
+  const history = [];
+  historyCards.forEach((card, index) => {
+    const firEl = card.querySelector('.f-history-fir-input');
+    const distEl = card.querySelector('.f-history-district-input');
+    const psEl = card.querySelector('.f-history-ps-input');
+    const sectionsEl = card.querySelector('.f-history-sections-input');
+
+    const fir = firEl ? firEl.value.trim() : '';
+    const dist = distEl ? distEl.value : '';
+    const ps = psEl ? psEl.value : '';
+    const sections = sectionsEl ? sectionsEl.value.trim() : '';
+
+    // Always include the first card, or subsequent cards if they have at least one field filled
+    if (index === 0 || fir || sections) {
+      history.push({
+        firNumber: fir || 'Pending',
+        crimeNumber: 'Pending',
+        policeStation: ps || currentUser.station,
+        district: dist || 'lucknow',
+        sections: sections || 'Under Investigation',
+        chargeSheetStatus: 'Under Investigation',
+        convictionDetails: 'Under Investigation',
+        bailStatus: 'Pending',
+        courtCaseDetails: 'Awaiting Charge Sheet'
+      });
+    }
+  });
+
   const newDossier = {
     personalInfo: {
       name,
@@ -2900,17 +2962,7 @@ async function submitNewDossier() {
       eyeColor: 'N/A',
       bloodGroup: document.getElementById('f-blood').value
     },
-    history: [{
-      firNumber: document.getElementById('f-fir').value || 'Pending',
-      crimeNumber: 'Pending',
-      policeStation: document.getElementById('f-ps').value || currentUser.station,
-      district: document.getElementById('f-district').value,
-      sections: document.getElementById('f-sections').value || 'Under Investigation',
-      chargeSheetStatus: 'Under Investigation',
-      convictionDetails: 'Under Investigation',
-      bailStatus: 'Pending',
-      courtCaseDetails: 'Awaiting Charge Sheet'
-    }],
+    history: history,
     gangInfo: {
       gangName: document.getElementById('f-gang').value || 'Independent',
       gangLeader: document.getElementById('f-leader').value || 'N/A',
@@ -4628,4 +4680,57 @@ window.addVehicleField = function() {
   `;
   container.appendChild(div);
 };
+
+window.addHistoryField = function() {
+  const container = document.getElementById('history-entries-container');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = 'history-entry-card';
+  div.style.cssText = 'border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01); margin-top: 8px;';
+  div.innerHTML = `
+    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500);">✕ Remove</button>
+    <div class="form-grid" style="margin-top: 4px;">
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">FIR Number / एफआईआर संख्या</label>
+        <input class="form-control-sm f-history-fir-input" placeholder="FIR-XXX/YYYY" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">District / जनपद</label>
+        <select class="form-control-sm f-history-district-input" onchange="window.onDynamicDistrictChange(this)">
+          <option value="lucknow">Lucknow</option>
+          <option value="varanasi">Varanasi</option>
+          <option value="prayagraj">Prayagraj</option>
+          <option value="noida">Gautam Buddha Nagar</option>
+        </select>
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Police Station / थाना</label>
+        <select class="form-control-sm f-history-ps-input"></select>
+      </div>
+      <div class="form-group-row" style="grid-column: 1 / -1;">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Sections of Law / धाराएं</label>
+        <input class="form-control-sm f-history-sections-input" placeholder="e.g. IPC 302, Arms Act Sec 25" />
+      </div>
+    </div>
+  `;
+  container.appendChild(div);
+
+  const districtSelect = div.querySelector('.f-history-district-input');
+  if (districtSelect) {
+    window.onDynamicDistrictChange(districtSelect);
+  }
+};
+
+window.onDynamicDistrictChange = function(districtSelect) {
+  const card = districtSelect.closest('.history-entry-card');
+  if (!card) return;
+  const psSelect = card.querySelector('.f-history-ps-input');
+  if (!psSelect) return;
+
+  const districtId = districtSelect.value;
+  const stations = getStationsForDistrict(districtId);
+  psSelect.innerHTML = stations.map(s => `<option value="${s}">${s}</option>`).join('');
+};
+
 
