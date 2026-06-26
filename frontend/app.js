@@ -2696,6 +2696,22 @@ function openAddDossierModal() {
   const modal = document.getElementById('add-dossier-modal');
   modal.classList.add('open');
 
+  // Clear text fields
+  const idsToClear = [
+    'f-name', 'f-alias', 'f-father', 'f-dob', 'f-mobile', 'f-aadhaar', 'f-address', 
+    'f-fir', 'f-sections', 'f-intel', 'f-gang', 'f-leader', 
+    'f-prop-type', 'f-prop-address', 'f-prop-value', 
+    'f-veh-number', 'f-veh-type', 'f-veh-reg'
+  ];
+  idsToClear.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Reset status selections
+  const propStatusSelect = document.getElementById('f-prop-status');
+  if (propStatusSelect) propStatusSelect.value = 'Active';
+
   const distSelect = document.getElementById('f-district');
   const stationSelect = document.getElementById('f-ps');
   const villageSelect = document.getElementById('f-village');
@@ -2733,6 +2749,36 @@ async function submitNewDossier() {
 
   const dob = document.getElementById('f-dob').value;
   const age = dob ? Math.floor((new Date() - new Date(dob)) / 31557600000) : 0;
+
+  // Extract property details
+  const propType = document.getElementById('f-prop-type').value.trim();
+  const propAddress = document.getElementById('f-prop-address').value.trim();
+  const propValue = document.getElementById('f-prop-value').value.trim();
+  const propStatus = document.getElementById('f-prop-status').value;
+
+  const propertyDetails = [];
+  if (propType || propAddress || propValue) {
+    propertyDetails.push({
+      type: propType || 'Property',
+      address: propAddress || 'N/A',
+      estimatedValue: propValue || 'N/A',
+      status: propStatus
+    });
+  }
+
+  // Extract vehicle / transport details
+  const vehNumber = document.getElementById('f-veh-number').value.trim();
+  const vehType = document.getElementById('f-veh-type').value.trim();
+  const vehReg = document.getElementById('f-veh-reg').value.trim();
+
+  const vehicleDetails = [];
+  if (vehNumber || vehType || vehReg) {
+    vehicleDetails.push({
+      vehicleNumber: vehNumber || 'N/A',
+      vehicleType: vehType || 'Vehicle',
+      registrationDetails: vehReg || 'Registered'
+    });
+  }
 
   const newDossier = {
     personalInfo: {
@@ -2784,8 +2830,8 @@ async function submitNewDossier() {
       beatOfficerRemarks: 'Newly entered into system',
       intelligenceInputs: document.getElementById('f-intel').value || 'None yet'
     },
-    propertyDetails: [],
-    vehicleDetails: [],
+    propertyDetails: propertyDetails,
+    vehicleDetails: vehicleDetails,
     status: document.getElementById('f-status').value
   };
 
