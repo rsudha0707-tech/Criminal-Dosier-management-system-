@@ -2698,19 +2698,89 @@ function openAddDossierModal() {
 
   // Clear text fields
   const idsToClear = [
-    'f-name', 'f-alias', 'f-father', 'f-dob', 'f-mobile', 'f-aadhaar', 'f-address', 
-    'f-fir', 'f-sections', 'f-intel', 'f-gang', 'f-leader', 
-    'f-prop-type', 'f-prop-address', 'f-prop-value', 
-    'f-veh-number', 'f-veh-type', 'f-veh-reg'
+    'f-name', 'f-alias', 'f-father', 'f-dob', 'f-aadhaar', 
+    'f-fir', 'f-sections', 'f-intel', 'f-gang', 'f-leader'
   ];
   idsToClear.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
 
-  // Reset status selections
-  const propStatusSelect = document.getElementById('f-prop-status');
-  if (propStatusSelect) propStatusSelect.value = 'Active';
+  // Reset dynamic containers to single default empty fields
+  const mobileContainer = document.getElementById('mobile-entries-container');
+  if (mobileContainer) {
+    mobileContainer.innerHTML = `
+      <div class="mobile-entry-row" style="display: flex; gap: 8px;">
+        <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" style="flex: 1;" />
+        <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
+      </div>
+    `;
+  }
+
+  const addressContainer = document.getElementById('address-entries-container');
+  if (addressContainer) {
+    addressContainer.innerHTML = `
+      <div class="address-entry-row" style="display: flex; gap: 8px; align-items: center;">
+        <textarea class="form-control-sm f-address-input" placeholder="Full address..." style="flex: 1; height: 38px; resize: vertical;"></textarea>
+        <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
+      </div>
+    `;
+  }
+
+  const propertyContainer = document.getElementById('property-entries-container');
+  if (propertyContainer) {
+    propertyContainer.innerHTML = `
+      <div class="property-entry-card" style="border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01);">
+        <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕ Remove</button>
+        <div class="form-grid" style="margin-top: 4px;">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Property Type / संपत्ति का प्रकार</label>
+            <input class="form-control-sm f-prop-type-input" placeholder="e.g. House, Land, Bank Account" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Address/Details / पता या बैंक विवरण</label>
+            <input class="form-control-sm f-prop-address-input" placeholder="Location or Account info" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Estimated Value / अनुमानित मूल्य</label>
+            <input class="form-control-sm f-prop-value-input" placeholder="e.g. ₹50 Lakhs" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Status / स्थिति</label>
+            <select class="form-control-sm f-prop-status-input">
+              <option value="Active">Active / सक्रिय</option>
+              <option value="Seized">Seized / जब्त</option>
+              <option value="Attached">Attached / कुर्क</option>
+              <option value="Frozen">Frozen / फ्रीज</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const vehicleContainer = document.getElementById('vehicle-entries-container');
+  if (vehicleContainer) {
+    vehicleContainer.innerHTML = `
+      <div class="vehicle-entry-card" style="border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01);">
+        <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕ Remove</button>
+        <div class="form-grid" style="margin-top: 4px;">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Number / वाहन संख्या</label>
+            <input class="form-control-sm f-veh-number-input" placeholder="e.g. UP-32-EX-4122" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Type / वाहन का प्रकार</label>
+            <input class="form-control-sm f-veh-type-input" placeholder="e.g. SUV (Fortuner - White), Motorcycle" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Registration Details / पंजीकरण विवरण</label>
+            <input class="form-control-sm f-veh-reg-input" placeholder="e.g. Registered under spouse" />
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   const distSelect = document.getElementById('f-district');
   const stationSelect = document.getElementById('f-ps');
@@ -2750,35 +2820,60 @@ async function submitNewDossier() {
   const dob = document.getElementById('f-dob').value;
   const age = dob ? Math.floor((new Date() - new Date(dob)) / 31557600000) : 0;
 
-  // Extract property details
-  const propType = document.getElementById('f-prop-type').value.trim();
-  const propAddress = document.getElementById('f-prop-address').value.trim();
-  const propValue = document.getElementById('f-prop-value').value.trim();
-  const propStatus = document.getElementById('f-prop-status').value;
+  // Extract mobile numbers
+  const mobileInputs = document.querySelectorAll('#mobile-entries-container .f-mobile-input');
+  const mobileValues = Array.from(mobileInputs).map(i => i.value.trim()).filter(v => v !== '');
+  const mobileStr = mobileValues.length > 0 ? mobileValues.join(' / ') : 'N/A';
 
+  // Extract residences / addresses
+  const addressInputs = document.querySelectorAll('#address-entries-container .f-address-input');
+  const addressValues = Array.from(addressInputs).map(i => i.value.trim()).filter(v => v !== '');
+  const addressStr = addressValues.length > 0 ? addressValues.join(' | ') : 'N/A';
+
+  // Extract property details
+  const propertyCards = document.querySelectorAll('#property-entries-container .property-entry-card');
   const propertyDetails = [];
-  if (propType || propAddress || propValue) {
-    propertyDetails.push({
-      type: propType || 'Property',
-      address: propAddress || 'N/A',
-      estimatedValue: propValue || 'N/A',
-      status: propStatus
-    });
-  }
+  propertyCards.forEach(card => {
+    const propTypeEl = card.querySelector('.f-prop-type-input');
+    const propAddressEl = card.querySelector('.f-prop-address-input');
+    const propValueEl = card.querySelector('.f-prop-value-input');
+    const propStatusEl = card.querySelector('.f-prop-status-input');
+
+    const propType = propTypeEl ? propTypeEl.value.trim() : '';
+    const propAddress = propAddressEl ? propAddressEl.value.trim() : '';
+    const propValue = propValueEl ? propValueEl.value.trim() : '';
+    const propStatus = propStatusEl ? propStatusEl.value : 'Active';
+
+    if (propType || propAddress || propValue) {
+      propertyDetails.push({
+        type: propType || 'Property',
+        address: propAddress || 'N/A',
+        estimatedValue: propValue || 'N/A',
+        status: propStatus
+      });
+    }
+  });
 
   // Extract vehicle / transport details
-  const vehNumber = document.getElementById('f-veh-number').value.trim();
-  const vehType = document.getElementById('f-veh-type').value.trim();
-  const vehReg = document.getElementById('f-veh-reg').value.trim();
-
+  const vehicleCards = document.querySelectorAll('#vehicle-entries-container .vehicle-entry-card');
   const vehicleDetails = [];
-  if (vehNumber || vehType || vehReg) {
-    vehicleDetails.push({
-      vehicleNumber: vehNumber || 'N/A',
-      vehicleType: vehType || 'Vehicle',
-      registrationDetails: vehReg || 'Registered'
-    });
-  }
+  vehicleCards.forEach(card => {
+    const vehNumberEl = card.querySelector('.f-veh-number-input');
+    const vehTypeEl = card.querySelector('.f-veh-type-input');
+    const vehRegEl = card.querySelector('.f-veh-reg-input');
+
+    const vehNumber = vehNumberEl ? vehNumberEl.value.trim() : '';
+    const vehType = vehTypeEl ? vehTypeEl.value.trim() : '';
+    const vehReg = vehRegEl ? vehRegEl.value.trim() : '';
+
+    if (vehNumber || vehType || vehReg) {
+      vehicleDetails.push({
+        vehicleNumber: vehNumber || 'N/A',
+        vehicleType: vehType || 'Vehicle',
+        registrationDetails: vehReg || 'Registered'
+      });
+    }
+  });
 
   const newDossier = {
     personalInfo: {
@@ -2790,9 +2885,9 @@ async function submitNewDossier() {
       gender: document.getElementById('f-gender').value,
       dob,
       age,
-      mobile: document.getElementById('f-mobile').value || 'N/A',
+      mobile: mobileStr,
       aadhaar: 'XXXX-XXXX-' + (document.getElementById('f-aadhaar').value || 'XXXX'),
-      address: document.getElementById('f-address').value || 'N/A',
+      address: addressStr,
       permanentAddress: 'N/A',
       photograph: `https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&q=80&w=300`,
       village: document.getElementById('f-village').value
@@ -4442,4 +4537,95 @@ window.initFaceRecog = initFaceRecog;
 window.toggleWebcam = toggleWebcam;
 window.captureAndScan = captureAndScan;
 window.simulateDemoMatch = simulateDemoMatch;
+
+window.addMobileField = function() {
+  const container = document.getElementById('mobile-entries-container');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = 'mobile-entry-row';
+  div.style.cssText = 'display: flex; gap: 8px; margin-top: 4px;';
+  div.innerHTML = `
+    <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" style="flex: 1;" />
+    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500);">✕</button>
+  `;
+  container.appendChild(div);
+};
+
+window.addAddressField = function() {
+  const container = document.getElementById('address-entries-container');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = 'address-entry-row';
+  div.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-top: 4px;';
+  div.innerHTML = `
+    <textarea class="form-control-sm f-address-input" placeholder="Full address..." style="flex: 1; height: 38px; resize: vertical;"></textarea>
+    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500);">✕</button>
+  `;
+  container.appendChild(div);
+};
+
+window.addPropertyField = function() {
+  const container = document.getElementById('property-entries-container');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = 'property-entry-card';
+  div.style.cssText = 'border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01); margin-top: 8px;';
+  div.innerHTML = `
+    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500);">✕ Remove</button>
+    <div class="form-grid" style="margin-top: 4px;">
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Property Type / संपत्ति का प्रकार</label>
+        <input class="form-control-sm f-prop-type-input" placeholder="e.g. House, Land, Bank Account" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Address/Details / पता या बैंक विवरण</label>
+        <input class="form-control-sm f-prop-address-input" placeholder="Location or Account info" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Estimated Value / अनुमानित मूल्य</label>
+        <input class="form-control-sm f-prop-value-input" placeholder="e.g. ₹50 Lakhs" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Status / स्थिति</label>
+        <select class="form-control-sm f-prop-status-input">
+          <option value="Active">Active / सक्रिय</option>
+          <option value="Seized">Seized / जब्त</option>
+          <option value="Attached">Attached / कुर्क</option>
+          <option value="Frozen">Frozen / फ्रीज</option>
+        </select>
+      </div>
+    </div>
+  `;
+  container.appendChild(div);
+};
+
+window.addVehicleField = function() {
+  const container = document.getElementById('vehicle-entries-container');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = 'vehicle-entry-card';
+  div.style.cssText = 'border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01); margin-top: 8px;';
+  div.innerHTML = `
+    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500);">✕ Remove</button>
+    <div class="form-grid" style="margin-top: 4px;">
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Number / वाहन संख्या</label>
+        <input class="form-control-sm f-veh-number-input" placeholder="e.g. UP-32-EX-4122" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Type / वाहन का प्रकार</label>
+        <input class="form-control-sm f-veh-type-input" placeholder="e.g. SUV (Fortuner - White), Motorcycle" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:11px;color:var(--text-muted);">Registration Details / पंजीकरण विवरण</label>
+        <input class="form-control-sm f-veh-reg-input" placeholder="e.g. Registered under spouse" />
+      </div>
+    </div>
+  `;
+  container.appendChild(div);
+};
 

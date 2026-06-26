@@ -226,9 +226,15 @@
               <option>Other</option>
             </select>
           </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Mobile Number</label>
-            <input id="f-mobile" class="form-control-sm" type="text" placeholder="10-digit number" />
+          <div class="form-group-row" style="grid-column: 1 / -1;">
+            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Mobile Numbers / मोबाइल नंबर</label>
+            <div id="mobile-entries-container" style="display: flex; flex-direction: column; gap: 6px;">
+              <div class="mobile-entry-row" style="display: flex; gap: 8px;">
+                <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" style="flex: 1;" />
+                <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-xs btn-secondary" onclick="addMobileField()" style="margin-top: 6px; font-size: 11px; padding: 2px 8px; width: fit-content;">➕ Add Mobile Number</button>
           </div>
           <div class="form-group-row">
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">Aadhaar (Last 4 digits)</label>
@@ -249,9 +255,14 @@
           </div>
         </div>
         <div class="form-group-row" style="margin-top:8px;">
-          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Current Address / वर्तमान
-            पता</label>
-          <textarea id="f-address" class="form-control-sm" placeholder="Full address..."></textarea>
+          <label class="form-group" style="font-size:11px;color:var(--text-muted);">Residences / Addresses (वर्तमान / स्थायी पता)</label>
+          <div id="address-entries-container" style="display: flex; flex-direction: column; gap: 6px;">
+            <div class="address-entry-row" style="display: flex; gap: 8px; align-items: center;">
+              <textarea class="form-control-sm f-address-input" placeholder="Full address..." style="flex: 1; height: 38px; resize: vertical;"></textarea>
+              <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
+            </div>
+          </div>
+          <button type="button" class="btn btn-xs btn-secondary" onclick="addAddressField()" style="margin-top: 6px; font-size: 11px; padding: 2px 8px; width: fit-content;">➕ Add Residence/Address</button>
         </div>
 
         <div class="form-section-title" style="margin-top:16px;">⚖️ Criminal History</div>
@@ -326,45 +337,57 @@
         </div>
 
         <div class="form-section-title" style="margin-top:16px;">🏢 Property Details / संपत्ति का विवरण</div>
-        <div class="form-grid">
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Property Type / संपत्ति का प्रकार</label>
-            <input id="f-prop-type" class="form-control-sm" placeholder="e.g. House, Land, Bank Account" />
-          </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Address/Details / पता या बैंक विवरण</label>
-            <input id="f-prop-address" class="form-control-sm" placeholder="Location or Account info" />
-          </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Estimated Value / अनुमानित मूल्य</label>
-            <input id="f-prop-value" class="form-control-sm" placeholder="e.g. ₹50 Lakhs" />
-          </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Status / स्थिति</label>
-            <select id="f-prop-status" class="form-control-sm">
-              <option value="Active">Active / सक्रिय</option>
-              <option value="Seized">Seized / जब्त</option>
-              <option value="Attached">Attached / कुर्क</option>
-              <option value="Frozen">Frozen / फ्रीज</option>
-            </select>
+        <div id="property-entries-container" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px;">
+          <div class="property-entry-card" style="border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01);">
+            <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕ Remove</button>
+            <div class="form-grid" style="margin-top: 4px;">
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Property Type / संपत्ति का प्रकार</label>
+                <input class="form-control-sm f-prop-type-input" placeholder="e.g. House, Land, Bank Account" />
+              </div>
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Address/Details / पता या बैंक विवरण</label>
+                <input class="form-control-sm f-prop-address-input" placeholder="Location or Account info" />
+              </div>
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Estimated Value / अनुमानित मूल्य</label>
+                <input class="form-control-sm f-prop-value-input" placeholder="e.g. ₹50 Lakhs" />
+              </div>
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Status / स्थिति</label>
+                <select class="form-control-sm f-prop-status-input">
+                  <option value="Active">Active / सक्रिय</option>
+                  <option value="Seized">Seized / जब्त</option>
+                  <option value="Attached">Attached / कुर्क</option>
+                  <option value="Frozen">Frozen / फ्रीज</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
+        <button type="button" class="btn btn-xs btn-secondary" onclick="addPropertyField()" style="margin-bottom: 16px; font-size: 11px; padding: 4px 12px; width: fit-content;">➕ Add Another Property</button>
 
         <div class="form-section-title" style="margin-top:16px;">🚗 Vehicle & Transport Details / वाहन एवं परिवहन विवरण</div>
-        <div class="form-grid">
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Number / वाहन संख्या</label>
-            <input id="f-veh-number" class="form-control-sm" placeholder="e.g. UP-32-EX-4122" />
-          </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Type / वाहन का प्रकार</label>
-            <input id="f-veh-type" class="form-control-sm" placeholder="e.g. SUV (Fortuner - White), Motorcycle" />
-          </div>
-          <div class="form-group-row">
-            <label class="form-group" style="font-size:11px;color:var(--text-muted);">Registration Details / पंजीकरण विवरण</label>
-            <input id="f-veh-reg" class="form-control-sm" placeholder="e.g. Registered under spouse" />
+        <div id="vehicle-entries-container" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px;">
+          <div class="vehicle-entry-card" style="border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01);">
+            <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕ Remove</button>
+            <div class="form-grid" style="margin-top: 4px;">
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Number / वाहन संख्या</label>
+                <input class="form-control-sm f-veh-number-input" placeholder="e.g. UP-32-EX-4122" />
+              </div>
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Vehicle Type / वाहन का प्रकार</label>
+                <input class="form-control-sm f-veh-type-input" placeholder="e.g. SUV (Fortuner - White), Motorcycle" />
+              </div>
+              <div class="form-group-row">
+                <label class="form-group" style="font-size:11px;color:var(--text-muted);">Registration Details / पंजीकरण विवरण</label>
+                <input class="form-control-sm f-veh-reg-input" placeholder="e.g. Registered under spouse" />
+              </div>
+            </div>
           </div>
         </div>
+        <button type="button" class="btn btn-xs btn-secondary" onclick="addVehicleField()" style="margin-bottom: 16px; font-size: 11px; padding: 4px 12px; width: fit-content;">➕ Add Another Vehicle</button>
 
         <div class="form-group-row" style="margin-top: 12px; margin-bottom: 12px;">
           <label class="form-group" style="font-size:11px;color:var(--text-muted);">Attach Photos / तस्वीरें संलग्न करें
