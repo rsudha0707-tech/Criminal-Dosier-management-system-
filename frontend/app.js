@@ -2859,17 +2859,68 @@ async function submitNewDossier() {
   if (!name) { showToast('❌ Name is required!', 'error'); return; }
 
   const dob = document.getElementById('f-dob').value;
+  if (dob && new Date(dob) > new Date()) {
+    showToast('❌ Date of Birth cannot be in the future!', 'error');
+    return;
+  }
   const age = dob ? Math.floor((new Date() - new Date(dob)) / 31557600000) : 0;
 
-  // Extract mobile numbers
+  // Extract and validate mobile numbers
   const mobileInputs = document.querySelectorAll('#mobile-entries-container .f-mobile-input');
-  const mobileValues = Array.from(mobileInputs).map(i => i.value.trim()).filter(v => v !== '');
-  const mobileStr = mobileValues.length > 0 ? mobileValues.join(' / ') : 'N/A';
+  const mobileValues = [];
+  for (let i = 0; i < mobileInputs.length; i++) {
+    const val = mobileInputs[i].value.trim();
+    if (val !== '') {
+      if (!/^\d{10}$/.test(val)) {
+        showToast('❌ Mobile number must be exactly 10 digits!', 'error');
+        return;
+      }
+      mobileValues.push(val);
+    }
+  }
+  if (mobileValues.length === 0) {
+    showToast('❌ At least one mobile number is required!', 'error');
+    return;
+  }
+  const mobileStr = mobileValues.join(' / ');
 
-  // Extract residences / addresses
-  const addressInputs = document.querySelectorAll('#address-entries-container .f-address-input');
-  const addressValues = Array.from(addressInputs).map(i => i.value.trim()).filter(v => v !== '');
-  const addressStr = addressValues.length > 0 ? addressValues.join(' | ') : 'N/A';
+  // Validate Aadhaar (Last 4 digits)
+  const aadhaarVal = document.getElementById('f-aadhaar').value.trim();
+  if (aadhaarVal && !/^\d{4}$/.test(aadhaarVal)) {
+    showToast('❌ Aadhaar must be exactly 4 digits!', 'error');
+    return;
+  }
+
+  // Extract and validate residences / addresses
+  const addressCards = document.querySelectorAll('#address-entries-container .address-entry-row');
+  const addressValues = [];
+  for (let i = 0; i < addressCards.length; i++) {
+    const card = addressCards[i];
+    const houseEl = card.querySelector('.f-address-house');
+    const galiEl = card.querySelector('.f-address-gali');
+    const psEl = card.querySelector('.f-address-ps');
+    const poEl = card.querySelector('.f-address-po');
+    const pinEl = card.querySelector('.f-address-pin');
+
+    const house = houseEl ? houseEl.value.trim() : '';
+    const gali = galiEl ? galiEl.value.trim() : '';
+    const ps = psEl ? psEl.value.trim() : '';
+    const po = poEl ? poEl.value.trim() : '';
+    const pin = pinEl ? pinEl.value.trim() : '';
+
+    if (!gali) { showToast('❌ Gali/Area is required in address!', 'error'); return; }
+    if (!ps) { showToast('❌ Police Station is required in address!', 'error'); return; }
+    if (!po) { showToast('❌ Post Office is required in address!', 'error'); return; }
+    if (!pin || !/^\d{6}$/.test(pin)) { showToast('❌ Pin Code must be a 6-digit number!', 'error'); return; }
+
+    const formattedAddress = `House No: ${house || 'N/A'}, Gali/Area: ${gali}, PS: ${ps}, PO: ${po}, PIN: ${pin}`;
+    addressValues.push(formattedAddress);
+  }
+  if (addressValues.length === 0) {
+    showToast('❌ At least one address is required!', 'error');
+    return;
+  }
+  const addressStr = addressValues.join(' | ');
 
   // Extract property details
   const propertyCards = document.querySelectorAll('#property-entries-container .property-entry-card');
@@ -2957,7 +3008,7 @@ async function submitNewDossier() {
       dob,
       age,
       mobile: mobileStr,
-      aadhaar: 'XXXX-XXXX-' + (document.getElementById('f-aadhaar').value || 'XXXX'),
+      aadhaar: 'XXXX-XXXX-' + (aadhaarVal || 'XXXX'),
       address: addressStr,
       permanentAddress: 'N/A',
       photograph: `https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&q=80&w=300`,
@@ -4619,10 +4670,31 @@ window.addAddressField = function() {
 
   const div = document.createElement('div');
   div.className = 'address-entry-row';
-  div.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-top: 4px;';
+  div.style.cssText = 'border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01); margin-top: 8px;';
   div.innerHTML = `
-    <textarea class="form-control-sm f-address-input" placeholder="Full address..." style="flex: 1; height: 38px; resize: vertical;"></textarea>
-    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500);">✕</button>
+    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500);">✕ Remove</button>
+    <div class="form-grid" style="margin-top: 4px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:10px;color:var(--text-muted);">House No / गृह संख्या</label>
+        <input class="form-control-sm f-address-house" placeholder="House No." />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:10px;color:var(--text-muted);">Gali/Area / गली/क्षेत्र *</label>
+        <input class="form-control-sm f-address-gali" placeholder="Gali / Area / Village" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:10px;color:var(--text-muted);">Police Station / थाना *</label>
+        <input class="form-control-sm f-address-ps" placeholder="Police Station" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:10px;color:var(--text-muted);">Post Office / डाकघर *</label>
+        <input class="form-control-sm f-address-po" placeholder="Post Office" />
+      </div>
+      <div class="form-group-row">
+        <label class="form-group" style="font-size:10px;color:var(--text-muted);">Pin Code / पिन कोड *</label>
+        <input class="form-control-sm f-address-pin" placeholder="6-digit PIN" />
+      </div>
+    </div>
   `;
   container.appendChild(div);
 };
