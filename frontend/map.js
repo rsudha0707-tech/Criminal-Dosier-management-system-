@@ -20,6 +20,19 @@ window.initCrimeMap = function(containerId) {
 
   window.cdims_map = map;
 
+  // Prevent Leaflet scroll trap on mobile devices (allow two-finger panning but single-finger page scrolling)
+  if (L.Browser.mobile) {
+    map.dragging.disable();
+    
+    map.on('touchstart', function(e) {
+      if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length >= 2) {
+        map.dragging.enable();
+      } else {
+        map.dragging.disable();
+      }
+    });
+  }
+
   // Dark CartoDB basemap
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,

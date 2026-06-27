@@ -3229,6 +3229,15 @@ body::before {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
   }
+  .hud-container {
+    overflow-x: auto !important;
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hud-body {
+    min-width: 850px !important;
+    overflow-x: visible !important;
+  }
 }
 
 

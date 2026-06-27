@@ -656,6 +656,8 @@ function ReactNetworkGraph() {
   const [draggedNodeId, setDraggedNodeId] = useState(null);
   
   const boardRef = useRef(null);
+  const [touchStartDist, setTouchStartDist] = useState(0);
+  const nodeTouchTimes = useRef({});
 
   // Poll and fetch live dossiers from the CSV database cache
   useEffect(() => {
@@ -787,6 +789,80 @@ function ReactNetworkGraph() {
     }
     setZoom(nextZoom);
   };
+
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const nodeEl = e.target.closest('.node-group');
+      if (!nodeEl) {
+        setIsDraggingCanvas(true);
+        setDragStart({ x: touch.clientX - pan.x, y: touch.clientY - pan.y });
+      }
+    } else if (e.touches.length === 2) {
+      setIsDraggingCanvas(false);
+      setDraggedNodeId(null);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setTouchStartDist(dist);
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      if (isDraggingCanvas) {
+        setPan({ x: touch.clientX - dragStart.x, y: touch.clientY - dragStart.y });
+      } else if (draggedNodeId) {
+        if (boardRef.current) {
+          const rect = boardRef.current.getBoundingClientRect();
+          const localX = (touch.clientX - rect.left - pan.x) / zoom;
+          const localY = (touch.clientY - rect.top - pan.y) / zoom;
+          
+          setNodes(prev => prev.map(n => {
+            if (n.id === draggedNodeId && !n.fixed) {
+              return { ...n, x: localX, y: localY };
+            }
+            return n;
+          }));
+        }
+      }
+    } else if (e.touches.length === 2 && touchStartDist > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = dist / touchStartDist;
+      const nextZoom = Math.min(Math.max(zoom * factor, 0.3), 3.0);
+      setZoom(nextZoom);
+      setTouchStartDist(dist);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDraggingCanvas(false);
+    setDraggedNodeId(null);
+    setTouchStartDist(0);
+  };
+
+  const handleNodeTouchStart = (e, nodeId) => {
+    e.stopPropagation();
+    setSelectedNodeId(nodeId);
+    const node = nodes.find(n => n.id === nodeId);
+    if (node && !node.fixed) {
+      setDraggedNodeId(nodeId);
+    }
+
+    // Double tap detection
+    const now = Date.now();
+    const lastTouch = nodeTouchTimes.current[nodeId] || 0;
+    if (now - lastTouch < 300) {
+      handleNodeDoubleClick(e, nodeId);
+    }
+    nodeTouchTimes.current[nodeId] = now;
+  };
+
 
   // Node actions
   const handleNodeMouseDown = (e, nodeId) => {
@@ -1325,6 +1401,10 @@ function ReactNetworkGraph() {
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
           className="network-graph-panel"
           style={{
             cursor: isDraggingCanvas ? 'grabbing' : 'grab'
@@ -1430,9 +1510,11 @@ function ReactNetworkGraph() {
                 return (
                   <g 
                     key={node.id}
+                    className="node-group"
                     transform={`translate(${node.x}, ${node.y})`}
                     style={{ cursor: node.fixed ? 'default' : 'move', opacity, transition: 'opacity 0.25s' }}
                     onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                    onTouchStart={(e) => handleNodeTouchStart(e, node.id)}
                     onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
                     onContextMenu={(e) => handleNodeContextMenu(e, node)}
                     onMouseOver={(e) => handleNodeMouseOver(e, node.id)}
