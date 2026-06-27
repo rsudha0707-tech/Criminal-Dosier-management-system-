@@ -950,11 +950,20 @@ function initDashboardLazyLoading() {
   const sections = document.querySelectorAll('.lazy-section');
   const scrollContainer = document.getElementById('page-content');
 
-  if (!window.IntersectionObserver) {
-    // Fallback: load everything immediately if IntersectionObserver is not supported
+  const isMobile = window.innerWidth <= 768;
+
+  if (isMobile || !window.IntersectionObserver) {
+    // Fallback: load everything immediately on mobile or if IntersectionObserver is not supported
     sections.forEach(s => s.classList.add('visible'));
+    
+    const container = document.getElementById('district-bars');
+    if (container) container.innerHTML = '';
     initDistrictBars();
+    
+    const mapCont = document.getElementById('dashboard-map-container');
+    if (mapCont) mapCont.innerHTML = '';
     initCrimeMap('dashboard-map-container');
+    
     initDashboardChartsOnly();
     return;
   }
