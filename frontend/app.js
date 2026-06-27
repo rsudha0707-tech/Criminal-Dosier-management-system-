@@ -2720,7 +2720,7 @@ function openAddDossierModal() {
   if (mobileContainer) {
     mobileContainer.innerHTML = `
       <div class="mobile-entry-row" style="display: flex; gap: 8px;">
-        <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" style="flex: 1;" />
+        <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="flex: 1;" />
         <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
       </div>
     `;
@@ -2729,9 +2729,30 @@ function openAddDossierModal() {
   const addressContainer = document.getElementById('address-entries-container');
   if (addressContainer) {
     addressContainer.innerHTML = `
-      <div class="address-entry-row" style="display: flex; gap: 8px; align-items: center;">
-        <textarea class="form-control-sm f-address-input" placeholder="Full address..." style="flex: 1; height: 38px; resize: vertical;"></textarea>
-        <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
+      <div class="address-entry-row" style="border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-sm); position: relative; background: rgba(255,255,255,0.01);">
+        <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px; padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
+        <div class="form-grid" style="margin-top: 4px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:10px;color:var(--text-muted);">House No / गृह संख्या</label>
+            <input class="form-control-sm f-address-house" placeholder="House No." />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:10px;color:var(--text-muted);">Gali/Area / गली/क्षेत्र *</label>
+            <input class="form-control-sm f-address-gali" placeholder="Gali / Area / Village" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:10px;color:var(--text-muted);">Police Station / थाना *</label>
+            <input class="form-control-sm f-address-ps" placeholder="Police Station" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:10px;color:var(--text-muted);">Post Office / डाकघर *</label>
+            <input class="form-control-sm f-address-po" placeholder="Post Office" />
+          </div>
+          <div class="form-group-row">
+            <label class="form-group" style="font-size:10px;color:var(--text-muted);">Pin Code / पिन कोड *</label>
+            <input class="form-control-sm f-address-pin" placeholder="6-digit PIN" maxlength="6" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+          </div>
+        </div>
       </div>
     `;
   }
@@ -4658,7 +4679,7 @@ window.addMobileField = function() {
   div.className = 'mobile-entry-row';
   div.style.cssText = 'display: flex; gap: 8px; margin-top: 4px;';
   div.innerHTML = `
-    <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" style="flex: 1;" />
+    <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="flex: 1;" />
     <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500);">✕</button>
   `;
   container.appendChild(div);

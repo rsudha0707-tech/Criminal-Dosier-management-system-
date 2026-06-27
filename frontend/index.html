@@ -7,7 +7,7 @@
   <meta name="description"
     content="Criminal Dossier & Intelligence Management System — Uttar Pradesh Police Headquarters. Centralized portal for criminal records, gang profiles, surveillance and intelligence." />
   <title>CDIMS — Criminal Dossier & Intelligence Management System | UP Police</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=1.0.1" />
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Chart.js -->
@@ -21,8 +21,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Supabase JS Client (required for backend.js) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- Backend: Supabase data layer (replaces dossiers.js) -->
-  <script src="backend.js"></script>
+  <script src="backend.js?v=1.0.1"></script>
 </head>
 
 <body>
@@ -229,7 +228,7 @@
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">Mobile Numbers / मोबाइल नंबर</label>
             <div id="mobile-entries-container" style="display: flex; flex-direction: column; gap: 6px;">
               <div class="mobile-entry-row" style="display: flex; gap: 8px;">
-                <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" style="flex: 1;" />
+                <input class="form-control-sm f-mobile-input" type="text" placeholder="10-digit number" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="flex: 1;" />
                 <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove()" style="padding: 2px 8px; border: 1px solid var(--red-500); display: none;">✕</button>
               </div>
             </div>
@@ -237,7 +236,7 @@
           </div>
           <div class="form-group-row">
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">Aadhaar (Last 4 digits)</label>
-            <input id="f-aadhaar" class="form-control-sm" type="text" placeholder="XXXX-XXXX-XXXX" />
+            <input id="f-aadhaar" class="form-control-sm" type="text" placeholder="XXXX" maxlength="4" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
           </div>
           <div class="form-group-row">
             <label class="form-group" style="font-size:11px;color:var(--text-muted);">Blood Group</label>
@@ -290,7 +289,7 @@
                 </div>
                 <div class="form-group-row">
                   <label class="form-group" style="font-size:10px;color:var(--text-muted);">Pin Code / पिन कोड *</label>
-                  <input class="form-control-sm f-address-pin" placeholder="6-digit PIN" />
+                  <input class="form-control-sm f-address-pin" placeholder="6-digit PIN" maxlength="6" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
                 </div>
               </div>
             </div>
@@ -434,10 +433,10 @@
 
   <div id="dossier-print-area"></div>
 
-  <script src="network_react.compiled.js"></script>
-  <script src="map.js"></script>
-  <script src="app.js"></script>
-  <script src="alerts_center.js"></script>
+  <script src="network_react.compiled.js?v=1.0.1"></script>
+  <script src="map.js?v=1.0.1"></script>
+  <script src="app.js?v=1.0.1"></script>
+  <script src="alerts_center.js?v=1.0.1"></script>
 </body>
 
 </html>
